@@ -1,20 +1,25 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Auth\RegisterController;
-use App\Http\Controllers\Auth\LoginController;
-use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
-use App\Http\Controllers\Admin\LapakController;
-use App\Http\Controllers\Admin\WaitingListController;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Http\Request;
+
 use App\Http\Controllers\Admin\UserController;
-use App\Http\Controllers\Admin\PerpindahanController;
-use App\Http\Controllers\Admin\AdminKehadiranController;
 use App\Http\Controllers\Admin\KeuanganController;
+use App\Http\Controllers\Admin\LapakController;
+use App\Http\Controllers\Admin\PerpindahanController;
+use App\Http\Controllers\Admin\WaitingListController;
+use App\Http\Controllers\Admin\AdminKehadiranController;
+use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 
 use App\Http\Controllers\User\ProfileController;
-use App\Http\Controllers\User\DashboardController as UserDashboardController;
 use App\Http\Controllers\User\RombongController;
 use App\Http\Controllers\User\KehadiranController;
+use App\Http\Controllers\User\DashboardController as UserDashboardController;
+
+use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\Auth\LupaPasswordController;
 
 
 
@@ -117,3 +122,15 @@ Route::prefix('user')->name('user.')->group(function () {
 
 // =================== LOGOUT ROUTE ===================
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout')->middleware('auth');
+
+Route::get('/lupa-password', [LupaPasswordController::class, 'lupaPassword'])
+    ->name('password.request');
+
+Route::post('/lupa-password', [LupaPasswordController::class, 'kirimLink'])
+    ->name('password.email');
+
+Route::get('/reset-password/{token}', [LupaPasswordController::class, 'resetForm'])
+    ->name('password.reset');
+
+Route::post('/reset-password', [LupaPasswordController::class, 'resetPassword'])
+    ->name('password.update');

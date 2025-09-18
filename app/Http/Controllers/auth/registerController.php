@@ -2,12 +2,13 @@
 
 namespace App\Http\Controllers\auth;
 
-use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Models\User;
-use App\Models\registrasi_pertanyaan;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Hash;
+use App\Models\registrasi_pertanyaan;
+use Illuminate\Validation\ValidationException;
 
 class RegisterController extends Controller
 {
@@ -33,11 +34,7 @@ class RegisterController extends Controller
                 'penjaga_stand' => 'required|string|max:50',
             ]);
 
-            // Debug: Dump data yang diterima
-            // dd([
-            //     'validated' => $validated,
-            //     'all_request' => $request->all()
-            // ]);
+
 
             // Normalisasi jawaban
             $p1 = $validated['pertanyaan1'] ?? [];
@@ -87,7 +84,7 @@ class RegisterController extends Controller
                     ->with('error', 'Database Error: ' . $e->getMessage());
             }
 
-        } catch (\Illuminate\Validation\ValidationException $e) {
+        } catch (ValidationException $e) {
             return back()->withErrors($e->errors())->withInput();
             
         } catch (\Exception $e) {

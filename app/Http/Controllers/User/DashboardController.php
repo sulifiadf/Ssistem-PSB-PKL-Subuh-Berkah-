@@ -32,12 +32,33 @@ class DashboardController extends Controller
         //ambil rombong user
         $userRombong = rombong::where('user_id', $currentUserId)->first();
 
-        //cek apakah user sudah punya anggota
-        $buttonAnggota = false;
-        if($userRombong && !empty($userRombong->nama_jualan)) {
-            $userHasAnggota = waitingList::where('user_id', $currentUserId)->exists();
+        //apakah pernah mengajukan anggota
+        $userHasAnggota = waitingList::where('user_id', $currentUserId)->exists();
 
-            $buttonAnggota = !$userHasAnggota; //jika ada di waiting list, berarti sudah punya anggota
+        //button + anggota muncul, jika belum pernah mengajukan
+        $buttonAnggota = !$userHasAnggota;
+
+        //apakah semua anggota libur
+        $today = now()->toDateString();
+        $semuaLibur = true;
+
+        foreach ($lapaks as $lapak) {
+            foreach ($lapak->rombongs as $rombong) {
+                if ($rombong->user) {
+                    $kehadiran = kehadiran::where('user_id', $rombong->user->user_id)
+                        ->whereDate('tanggal', $today)
+                        ->first();
+
+                    if (!$kehadiran || $kehadiran->status != 'libur') {
+                        $semuaLibur = false;
+                        break 2;
+                    }
+                }
+            }
+        }
+
+        if ($semuaLibur){
+            $buttonAnggota = true;
         }
 
         $historyKehadiran = kehadiran::where('user_id', $currentUserId)

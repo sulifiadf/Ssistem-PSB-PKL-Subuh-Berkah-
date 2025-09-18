@@ -1,5 +1,5 @@
 @extends('master.masterUser')
-@section('title', 'Login')
+@section('title', 'lupa password')
 
 @section('content')
 
@@ -16,7 +16,7 @@
             
             <!-- Form Section -->
             <div class="w-full" x-data="{ step: 1 }">
-                <form action="{{route('admin.login.submit')}}" method="POST" class="space-y-5 bg-white rounded-xl shadow-lg p-6">
+                <form action="" method="POST" class="space-y-5 bg-white rounded-xl shadow-lg p-6">
                     @csrf
 
                     @if ($errors->any())
@@ -33,22 +33,21 @@
                                 class="w-full px-4 py-2 rounded-lg border border-gray-300 
                                 focus:outline-none focus:ring-2 focus:ring-[#b59356] focus:border-transparent">
                         </div>
-                        <div>
-                            <label for="password" class="block text-sm font-medium mb-1">Password</label>
-                            <input type="password" id="password" name="password" 
-                                class="w-full px-4 py-2 rounded-lg border border-gray-300 
-                                focus:outline-none focus:ring-2 focus:ring-[#b59356] focus:border-transparent">
-                        </div>
 
                         <!-- Tombol -->
                         <div class="flex gap-3 pt-2">
                             <button type="submit" 
                                     class="w-1/2 bg-[#b59356] text-white font-semibold py-2 px-4 rounded-lg hover:bg-[#a08347] transition duration-200">
-                                Login
+                                Send
                             </button>
                         </div>
-                    <span class="text-black">Belum punya akun? daftar <a href="/admin/register" class="text-blue-500">disini</a></span><br>
-                    <span class="text-black"><a href="{{route('password.request')}}" class="text-blue-500">Lupa password</a></span>
+
+                        @if (session('status'))
+                            <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mt-4">
+                                {{ session('status') }}
+                            </div>
+                            
+                        @endif
                 </form>
             </div>
         </div>
