@@ -1,5 +1,5 @@
-@extends('layout.masterUser')
-@section('title', 'Register')
+@extends('master.masterUser')
+@section('title', 'Login')
 
 @section('content')
 
@@ -16,8 +16,17 @@
             
             <!-- Form Section -->
             <div class="w-full" x-data="{ step: 1 }">
-                <form action="" method="POST" class="space-y-5 bg-white rounded-xl shadow-lg p-6">
+                <form action="{{route('user.login.submit')}}" method="POST" class="space-y-5 bg-white rounded-xl shadow-lg p-6">
                     @csrf
+
+                    @if ($errors->any())
+                        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                            @foreach ($errors->all() as $error)
+                                <p>{{ $error }}</p>
+                            @endforeach
+                        </div>
+                    @endif
+                    
                         <div>
                             <label for="email" class="block text-sm font-medium mb-1">Email</label>
                             <input type="email" id="email" name="email" 
@@ -35,10 +44,10 @@
                         <div class="flex gap-3 pt-2">
                             <button type="submit" 
                                     class="w-1/2 bg-[#b59356] text-white font-semibold py-2 px-4 rounded-lg hover:bg-[#a08347] transition duration-200">
-                                Register
+                                Login
                             </button>
                         </div>
-                    </div>
+                    <span class="text-black">Belum punya akun? daftar <a href="/user/register" class="text-blue-500">disini</a></span>
                 </form>
             </div>
         </div>

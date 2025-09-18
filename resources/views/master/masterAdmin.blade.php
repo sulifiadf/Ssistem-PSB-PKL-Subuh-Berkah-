@@ -9,10 +9,11 @@
     @vite('resources/css/app.css')
 </head>
 <body>
-    @include('layout.Admin.navbar')
-
     @yield('content')
 
-    @include('layout.Admin.footer')
+    @yield('scripts')
+
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+
 </body>
 </html>
