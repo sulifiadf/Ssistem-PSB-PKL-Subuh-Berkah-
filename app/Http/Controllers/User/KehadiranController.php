@@ -16,7 +16,7 @@ class KehadiranController extends Controller
 {
     public function konfirmasi(Request $request)
     {
-        $userId = auth()->id();
+        $userId = Auth::id();
         $status = strtolower(trim($request->input('status')));
         $today = Carbon::today();
 
