@@ -7,6 +7,7 @@ use App\Models\WaitingList;
 use App\Models\rombong;
 use App\Models\User;
 use Illuminate\Http\Request;
+use App\Services\NotifikasiPersetujuan;
 
 
 class WaitingListController extends Controller
@@ -19,6 +20,30 @@ class WaitingListController extends Controller
             ->get();
 
         return view('admin.waitinglist', compact('users', 'pendingRombong'));
+    }
+
+    public function store(Request $request, NotifikasiPersetujuan $wa)
+    {
+        $pengajuan = WaitingList::create([
+            'user_id'  => auth()->id(),
+            'lapak_id' => $request->lapak_id,
+            'status'   => 'pending',
+        ]);
+
+        $user  = $pengajuan->user;
+        $lapak = $pengajuan->lapak;
+
+        // Kirim notifikasi WA ke admin
+        $message = "📢 Pengajuan Anggota Lapak\n\n"
+            . "Nama User : {$user->name}\n"
+            . "Email : {$user->email}\n"
+            . "Lapak : {$lapak->nama_lapak}\n"
+            . "Tanggal Ajukan : " . now()->format('d-m-Y H:i') . "\n\n"
+            . "✅ Setujui / ❌ Tolak di dashboard admin.";
+
+        $wa->notifyAdmin($message);
+
+        return back()->with('status', 'Pengajuan berhasil dikirim, tunggu persetujuan admin.');
     }
 
     public function approveAnggota($waitingListId)

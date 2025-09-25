@@ -16,7 +16,14 @@ class RombongController extends Controller
         $request->validate([
             'lapak_id'    => 'required|exists:lapaks,lapak_id',
             'nama_jualan' => 'required|string|max:255',
+            'foto_rombong' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
         ]);
+
+        $path = null;
+        if ($request->hasFile('foto_rombong')) {
+            
+            $path = $request->file('foto_rombong')->store('rombong', 'public');
+        }
 
         // cek jika sudah mengirim pengajuan sebelumnya
         $existingPengajuan = WaitingList::where('user_id', auth()->id())->first();
@@ -50,4 +57,31 @@ class RombongController extends Controller
             'message' => 'Pengajuan berhasil dikirim ke waiting list.'
         ]);
     }
+
+    public function update(Request $request, $id)
+{
+    $rombong = Rombong::findOrFail($id);
+
+    $request->validate([
+        'nama_jualan'   => 'required|string|max:255',
+        'jenis'         => 'required|string|max:255',
+        'foto_rombong'  => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+    ]);
+
+    $path = $rombong->foto_rombong;
+    if ($request->hasFile('foto_rombong')) {
+        $path = $request->file('foto_rombong')->store('rombong', 'public');
+    }
+
+    $rombong->update([
+        'nama_jualan'  => $request->nama_jualan,
+        'jenis'        => $request->jenis,
+        'foto_rombong' => $path,
+    ]);
+
+    return redirect()->back()->with('success', 'Rombong berhasil diperbarui.');
+}
+
+
+
 }

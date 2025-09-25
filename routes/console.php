@@ -6,6 +6,7 @@ use App\Models\kehadiran;
 use Carbon\Carbon;
 use App\Console\Commands\AutoSetLibur;
 use App\Console\Commands\KirimReminderKehadiran;
+use Illuminate\Support\Facades\Schedule;
 
 
 Artisan::command('inspire', function () {
@@ -16,3 +17,4 @@ Schedule::command('kehadiran:reminder')->dailyAt('09:00');
 Schedule::command('kehadiran:auto-libur')->dailyAt('12:00');
 
 Schedule::command('kehadiran:reminder')->dailyAt('10:00');
+

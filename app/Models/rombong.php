@@ -18,6 +18,7 @@ class rombong extends Model
         'latitude',
         'longitude',
         'jenis',
+        'urutan'
     ];
 
     public function user()
@@ -28,6 +29,17 @@ class rombong extends Model
     public function lapak()
     {
         return $this->belongsTo(Lapak::class, 'lapak_id', 'lapak_id');
+    }
+
+    public function kehadiran()
+    {
+        return $this->hasMany(kehadiran::class, 'user_id', 'user_id');
+    }
+
+    public function kehadiranHariIni()
+    {
+        return $this->hasOne(kehadiran::class, 'user_id', 'user_id')
+            ->whereDate('tanggal', today());
     }
 
     public function waitingList()

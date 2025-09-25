@@ -2,12 +2,13 @@
 
 namespace App\Http\Controllers\User;
 
+use App\Models\Lapak;
+use App\Models\rombong;
+use App\Models\keuangan;
+use App\Models\kehadiran;
+use App\Models\WaitingList;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
-use App\Models\Lapak;
-use App\Models\WaitingList;
-use App\Models\rombong;
-use App\Models\kehadiran;
 
 class DashboardController extends Controller
 {
@@ -15,12 +16,17 @@ class DashboardController extends Controller
     {
         $user = Auth::user();
         $currentUserId = $user->user_id;
+        $today = now()->toDateString();
 
         $totalTetap = rombong::where('jenis', 'tetap')->count();
         $totalSementara = rombong::where('jenis', 'sementara')->count();
+        $jumlahUangKas = keuangan::where('jenis', 'pemasukan')->sum('jumlah');
 
-        // Ambil semua lapak beserta rombong + user pemiliknya
-        $lapaks = Lapak::with(['rombongs.user'])->get();
+        // Ambil semua lapak beserta rombong + user pemiliknya berdasarkan urutan
+        $lapaks = Lapak::with(['rombongs' => function($query){
+            $query->orderBy('urutan', 'asc');
+        }])->with(['rombongs.user'])
+            ->get();
 
 
         // Ambil daftar lapak yang SUDAH disetujui untuk user ini
@@ -35,31 +41,114 @@ class DashboardController extends Controller
         //apakah pernah mengajukan anggota
         $userHasAnggota = waitingList::where('user_id', $currentUserId)->exists();
 
-        //button + anggota muncul, jika belum pernah mengajukan
-        $buttonAnggota = !$userHasAnggota;
+        $isLewatJam12 = now()->hour >=12;
 
-        //apakah semua anggota libur
-        $today = now()->toDateString();
-        $semuaLibur = true;
+        $kehadiranHariIni = kehadiran::where('user_id', $currentUserId)
+            ->whereDate('tanggal', $today)
+            ->first();
 
-        foreach ($lapaks as $lapak) {
-            foreach ($lapak->rombongs as $rombong) {
-                if ($rombong->user) {
-                    $kehadiran = kehadiran::where('user_id', $rombong->user->user_id)
+        $sudahKonfirmasiHariIni = $kehadiranHariIni !== null;
+
+        if($isLewatJam12 && !$sudahKonfirmasiHariIni){
+            $kehadiranHariIni = kehadiran::create([
+                'user_id' => $currentUserId,
+                'tanggal' => $today,
+                'status' => 'libur',
+                'keterangan' => 'Auto-generated: Batas waktu absensi telah lewat'
+            ]);
+            $sudahKonfirmasiHariIni = true;
+        }
+
+        //konfirmasi berdasarkan urutan rombong
+        $buttonKonfirmasiAktif = false;
+        $buttonAnggotaAktif = false;
+        $rombongAktifSekarang = null;
+        $semuaRombongLibur = true;
+
+        foreach($lapaks as $lapak){
+            $rombongAktifLapak = null;
+            $adaRombongMasuk = false;
+            $semuaRombongLapakLibur = true;
+
+            foreach($lapak->rombongs as $rombong){
+                if($rombong->user){
+                    $kehadiranRombong = kehadiran::where('user_id', $rombong->user->user_id)
                         ->whereDate('tanggal', $today)
                         ->first();
 
-                    if (!$kehadiran || $kehadiran->status != 'libur') {
-                        $semuaLibur = false;
-                        break 2;
-                    }
+                        $statusRombong = $kehadiranRombong ? $kehadiranRombong->status : null;
+
+                        //jika rombong ini masuk
+                        if($statusRombong === 'masuk'){
+                            $adaRombongMasuk = true;
+                            $semuaRombongLapakLibur = false;
+                            $semuaRombongLibur = false;
+                            break;
+                        }
+
+                        if(!$statusRombong && !$isLewatJam12){
+                            if (!$rombongAktifLapak) {
+                                $rombongAktifLapak = $rombong;
+                            }
+
+                            if ($rombong->user->user_id == $currentUserId) {
+                                $rombongAktifSekarang = $rombongAktifLapak;
+                            }
+                        }
+
+                        //jika ada rombong yang tidak libur
+                        if($statusRombong !== 'libur'){
+                            $semuaRombongLapakLibur = false;
+                            $semuaRombongLibur = false;
+                        }
                 }
+            }
+
+            //jika ada rombong yang masuk, maka button konfirmasi tidak aktif untuk rombong setelahnya
+            if($adaRombongMasuk){
+                continue;
+            }
+
+            if($rombongAktifLapak && $rombongAktifLapak->user->user_id == $currentUserId){
+                $buttonKonfirmasiAktif = true;
+            }
+
+            //jika semua rombong di lapak ini libur, button + anggota aktif
+            if($semuaRombongLapakLibur){
+                $userAnggotaLapak = $lapak->rombongs->contains('user_id', $currentUserId);
+
+                if($userAnggotaLapak){
+                    $buttonAnggotaAktif = true;
+                }    
             }
         }
 
-        if ($semuaLibur){
-            $buttonAnggota = true;
+        //user bisa mengajuakn anggota jika belum pernh mengajukan
+        if(!$userHasAnggota){
+            $buttonAnggotaAktif = true;
         }
+
+        // //apakah semua anggota libur
+        // $semuaLibur = true;
+
+        // foreach ($lapaks as $lapak) {
+        //     foreach ($lapak->rombongs as $rombong) {
+        //         if ($rombong->user) {
+        //             $kehadiran = kehadiran::where('user_id', $rombong->user->user_id)
+        //                 ->whereDate('tanggal', $today)
+        //                 ->first();
+
+        //             if (!$kehadiran || $kehadiran->status != 'libur') {
+        //                 $semuaLibur = false;
+        //                 break 2;
+        //             }
+        //         }
+        //     }
+        // }
+
+        // if ($semuaLibur){
+        //     $buttonAnggota = true;
+        // }
 
         $historyKehadiran = kehadiran::where('user_id', $currentUserId)
             ->orderBy('tanggal', 'desc')
@@ -70,10 +159,16 @@ class DashboardController extends Controller
             'approvedLapakIds',
             'totalTetap',
             'totalSementara',
+            'jumlahUangKas',
             'userRombong',
-            'buttonAnggota',
+            'buttonKonfirmasiAktif',
+            'buttonAnggotaAktif',
             'userHasAnggota',
-            'historyKehadiran'
+            'historyKehadiran',
+            'sudahKonfirmasiHariIni',
+            'kehadiranHariIni',
+            'isLewatJam12',
+            'rombongAktifSekarang'
         ));
     }
 }

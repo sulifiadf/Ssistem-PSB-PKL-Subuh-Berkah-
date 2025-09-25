@@ -46,47 +46,41 @@
             </div>
             
             <div class="p-6">
-                @foreach($pendingRombong as $pendingRombong)
+                @foreach($pendingRombong as $rombong)
                     <div class="border border-gray-200 rounded-xl p-4 mb-4 last:mb-0 hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
-                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                            <div class="flex-1">
-                                <div class="flex items-center gap-3 mb-2">
-                                    <div class="w-12 h-12 bg-gradient-to-br from-yellow-600 to-yellow-400 rounded-full flex items-center justify-center text-white font-bold text-lg" style="background: linear-gradient(135deg, #b59356 0%, #CFB47D 100%);">
-                                        {{ strtoupper(substr($pendingRombong->user->name, 0, 1)) }}
-                                    </div>
-                                    <div>
-                                        <h3 class="font-semibold text-lg text-gray-800">{{ $pendingRombong->user->name }}</h3>
-                                        <p class="text-sm text-gray-500">{{ $pendingRombong->user->email }}</p>
-                                    </div>
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-3 mb-2">
+                                <div class="w-12 h-12 bg-gradient-to-br from-yellow-600 to-yellow-400 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                                    {{ strtoupper(substr($rombong->user->name, 0, 1)) }}
                                 </div>
-                                <div class="ml-15 space-y-1">
-                                    <p class="text-sm text-gray-600"><strong>Lapak:</strong> {{ $pendingRombong->lapak->nama_lapak }}</p>
-                                    <p class="text-sm text-gray-600"><strong>Nama Usaha:</strong> {{ $pendingRombong->user->rombong->nama_jualan ?? '-' }}</p>
-                                    <p class="text-sm text-gray-600"><strong>Tanggal Pengajuan:</strong> {{ optional(\Carbon\Carbon::parse($rombong->tanggal_pengajuan ?? null))->format('d M Y H:i') }}</p>
+                                <div>
+                                    <h3 class="font-semibold text-lg text-gray-800">{{ $rombong->user->name }}</h3>
+                                    <p class="text-sm text-gray-500">{{ $rombong->user->email }}</p>
                                 </div>
                             </div>
-                            <div class="flex gap-3">
-                                <form method="POST" action="{{ route('admin.anggota.approve', $pendingRombong->waiting_list_id) }}">
-                                    @csrf
-                                    <button type="submit" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors duration-200 shadow-md">
-                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
-                                        </svg>
-                                        Setujui
-                                    </button>
-                                </form>
-                                <form method="POST" action="{{ route('admin.anggota.reject', $pendingRombong->waiting_list_id) }}">
-                                    @csrf
-                                    <button type="submit" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors duration-200 shadow-md">
-                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
-                                        </svg>
-                                        Tolak
-                                    </button>
-                                </form>
+                            <div class="ml-15 space-y-1">
+                                <p class="text-sm text-gray-600"><strong>Lapak:</strong> {{ $rombong->lapak->nama_lapak }}</p>
+                                <p class="text-sm text-gray-600"><strong>Nama Usaha:</strong> {{ $rombong->user->rombong->nama_jualan ?? '-' }}</p>
+                                <p class="text-sm text-gray-600"><strong>Tanggal Pengajuan:</strong> {{ optional(\Carbon\Carbon::parse($rombong->tanggal_pengajuan ?? null))->format('d M Y H:i') }}</p>
                             </div>
                         </div>
+                        <div class="flex gap-3">
+                            <form method="POST" action="{{ route('admin.anggota.approve', $rombong->waiting_list_id) }}">
+                                @csrf
+                                <button type="submit" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors duration-200 shadow-md">
+                                    Setujui
+                                </button>
+                            </form>
+                            <form method="POST" action="{{ route('admin.anggota.reject', $rombong->waiting_list_id) }}">
+                                @csrf
+                                <button type="submit" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors duration-200 shadow-md">
+                                    Tolak
+                                </button>
+                            </form>
+                        </div>
                     </div>
+                </div>
                 @endforeach
             </div>
         </div>

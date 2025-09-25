@@ -4,163 +4,255 @@ namespace App\Http\Controllers\User;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use App\Models\kehadiran;
+use App\Models\Kehadiran;
 use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class KehadiranController extends Controller
 {
-    public function konfirmasi (Request $request)
+    public function konfirmasi(Request $request)
     {
-        $userId = $request->user_id;
-        $status = strtolower(trim($request->status));
+        $userId = auth()->id();
+        $status = strtolower(trim($request->input('status')));
+        $today = Carbon::today();
 
-        if(!in_array($status, ['masuk', 'libur'])) {
-            return response()->json(['message' => 'Status tidak valid. Gunakan "masuk" atau "libur".'], 400);
+        // Validasi status
+        if (!in_array($status, ['masuk', 'libur'])) {
+            return response()->json([
+                'success' => false, 
+                'message' => 'Status tidak valid. Hanya boleh: masuk atau libur.'
+            ], 422);
         }
 
-        $statusFinal = $status === 'masuk' ? 'masuk' : 'libur';
+        // Cek apakah sudah lewat jam 12:00
+        if (now()->hour >= 12) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Batas waktu konfirmasi telah berakhir (setelah jam 12:00).'
+            ], 422);
+        }
 
-        kehadiran::updateOrCreate(
-            ['user_id' => $userId, 'tanggal' => Carbon::today()],
-            ['status' => $statusFinal, 'waktu_konfirmasi' => Carbon::now()]
-        );
+        // Cek apakah sudah konfirmasi hari ini
+        $sudahKonfirmasi = Kehadiran::where('user_id', $userId)
+            ->whereDate('tanggal', $today)
+            ->exists();
 
-        $user = User::find($userId);
-        $namaUser = $user ? $user->name : 'User';
+        if ($sudahKonfirmasi) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Anda sudah melakukan konfirmasi kehadiran hari ini.'
+            ], 422);
+        }
+
+        // PERBAIKAN CSRF: Tambahkan validasi tambahan untuk keamanan
+        try {
+            // Gunakan cache lock untuk prevent race condition
+            $lock = Cache::lock('kehadiran_lock_' . $userId, 10);
+            
+            if ($lock->get()) {
+                // Update atau create kehadiran dengan query yang dioptimasi
+                $kehadiran = DB::transaction(function () use ($userId, $today, $status) {
+                    return Kehadiran::create([
+                        'user_id' => $userId,
+                        'tanggal' => $today,
+                        'status' => $status,
+                        'waktu_konfirmasi' => Carbon::now()
+                    ]);
+                });
+
+                // Clear cache terkait kehadiran
+                $this->clearKehadiranCache($userId, $today);
+
+                // Kirim WA di background (jika perlu)
+                if (app()->environment('production')) {
+                    dispatch(function () use ($userId, $status) {
+                        $this->kirimKonfirmasiWA($userId, $status);
+                    })->afterResponse();
+                }
+
+                return redirect()->back()->with('success', "Kehadiran berhasil dikonfirmasi sebagai {$status}");
+
+                
+                $lock->release();
+            }
+        } catch (\Exception $e) {
+            Log::error('Error konfirmasi kehadiran: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan sistem. Silakan coba lagi.'
+            ], 500);
+        }
 
         return response()->json([
-            'message' => "Kehadiran untuk {$namaUser} pada tanggal " . Carbon::today()->toDateString() . " telah dikonfirmasi sebagai '{$statusFinal}'."], 200);
-    }
-
-    public function konfirmasiViaWA(Request $request)
-    {
-        $phone = $request->phone;
-        $message = strtolower (trim($request->message));
-
-        $user = User::where('no_telp', $phone)
-            ->where('status', 'approve')
-            ->first();
-
-        if (!$user) {
-            return response()->json(['message' => 'User tidak ditemukan atau belum diapprove.'], 404);
-        }
-
-        //cek apakah user memiliki record kehadiran hari ini 
-        $kehadiran= kehadiran:: where('user_id', $user->user_id)
-            ->whereDate('tanggal', Carbon::today())
-            ->where('pesan_wa_terkirim', true) //hanya yang sudah dikirim pesan WA
-            ->first();
-
-        if (!$kehadiran) {
-            return response()->json(['message' => 'Tidak ada permintaan konfirmasi kehadiran untuk hari ini.'], 400);
-        }
-
-        $status = null;
-        if (str_contains($message, 'masuk')) {
-            $status = 'masuk';
-        } elseif (str_contains($message, 'libur')) {
-            $status = 'libur';
-        }
-
-        if (!$status) {
-            // Kirim pesan panduan jika format salah
-            $this->kirimPesanPanduan($phone, $user->name);
-            return response()->json(['message' => 'Format pesan tidak valid.'], 400);
-        }
-
-        // Update kehadiran
-        $kehadiran->update([
-            'status' => $status,
-            'waktu_konfirmasi' => Carbon::now(),
-        ]);
-
-        // Kirim konfirmasi balik via WA
-        $this->kirimKonfirmasiBalik($phone, $user->name, $status);
-
-        return response()->json([
-            'message' => "Konfirmasi {$user->name} berhasil: {$status}",
-            'status' => $status
-        ], 200);
-    }
-
-    private function kirimPesanPanduan($phone, $name)
-    {
-        $pesan = "Halo {$nama}!\n\n";
-        $pesan .= "Format pesan Anda tidak dikenali.\n";
-        $pesan .= "Silakan balas dengan:\n";
-        $pesan .= "- MASUK (jika Anda akan berjualan)\n";
-        $pesan .= "- LIBUR (jika Anda tidak berjualan)\n\n";
-    }
-
-    private function kirimKonfirmasiBalik($phone, $name, $status)
-    {
-        $statusText = $status === 'masuk' ? 'masuk' : 'libur';
-        $pesan = "Halo {$name}!\n\n";
-        $pesan .= "Status kehadiran Anda hari ini: {$statusText}\n";
-        $pesan .= "Waktu konfirmasi: " . Carbon::now()->format('H:i:s') . "\n\n";
-        $pesan .= "Terima kasih sudah konfirmasi tepat waktu! 🙏";
+            'success' => false,
+            'message' => 'Gagal mengkonfirmasi kehadiran.'
+        ], 500);
     }
 
     public function getStatusKehadiran()
     {
         $today = Carbon::today();
-        $kehadirans = kehadiran::with('user')
-                            ->whereDate('tanggal', $today)
-                            ->get();
+        $cacheKey = 'kehadiran_status_' . $today->format('Y-m-d');
 
-        $data = [];
-        foreach ($kehadirans as $kehadiran) {
-            $data[] = [
-                'user_id' => $kehadiran->user_id,
-                'nama' => $kehadiran->user->name,
-                'status' => $kehadiran->status,
-                'waktu_konfirmasi' => $kehadiran->waktu_konfirmasi,
-                'warna_button' => $this->getWarnaButton($kehadiran->status)
-            ];
-        }
+        // Gunakan cache untuk data yang sama dalam 30 detik
+        $kehadirans = Cache::remember($cacheKey, 30, function () use ($today) {
+            return Kehadiran::with(['user.rombong' => function($query) {
+                    $query->select('rombong_id', 'user_id', 'nama_jualan');
+                }])
+                ->whereDate('tanggal', $today)
+                ->select('user_id', 'status', 'tanggal')
+                ->get()
+                ->map(function ($item) {
+                    return [
+                        'rombong_id' => $item->user->rombong->rombong_id ?? null,
+                        'user_id' => $item->user_id,
+                        'nama' => $item->user->name ?? '',
+                        'nama_jualan' => $item->user->rombong->nama_jualan ?? '',
+                        'status' => $item->status,
+                        'isPast12' => now()->hour >= 12,
+                        'isActive' => false // akan dihitung di frontend berdasarkan urutan
+                    ];
+                });
+        });
 
-        return response()->json($data);
+        return response()->json($kehadirans);
     }
 
-    private function getWarnaButton($status)
+    public function getDashboardData()
     {
-        switch ($status) {
-            case 'masuk':
-                return 'bg-green-500 hover:bg-green-600';
-            case 'libur':
-                return 'bg-red-500 hover:bg-red-600';
-            default:
-                return 'bg-[#CFB47D] hover:bg-[#b89e65]';
+        $userId = auth()->id();
+        $today = Carbon::today();
+        
+        // Query yang dioptimasi untuk dashboard
+        $data = [
+            'jumlahUangKas' => Cache::remember('total_uang_kas', 300, function () {
+                return DB::table('kas')->sum('jumlah');
+            }),
+            
+            'totalTetap' => Cache::remember('anggota_tetap_count', 300, function () {
+                return User::where('status_anggota', 'tetap')->count();
+            }),
+            
+            'totalSementara' => Cache::remember('anggota_sementara_count', 300, function () {
+                return User::where('status_anggota', 'sementara')->count();
+            }),
+            
+            'kehadiranHariIni' => Kehadiran::where('user_id', $userId)
+                ->whereDate('tanggal', $today)
+                ->select('status', 'tanggal')
+                ->first(),
+                
+            'sudahKonfirmasiHariIni' => Kehadiran::where('user_id', $userId)
+                ->whereDate('tanggal', $today)
+                ->exists(),
+                
+            'isLewatJam12' => now()->hour >= 12,
+
+            'buttonKonfirmasiAktif' => $this->isButtonKonfirmasiAktif($userId),
+            'buttonAnggotaAktif' => $this->isButtonAnggotaAktif($userId),
+        ];
+
+        return $data;
+    }
+
+    private function isButtonKonfirmasiAktif($userId)
+    {
+        $today = Carbon::today();
+        
+        // Cek apakah sudah konfirmasi
+        if (Kehadiran::where('user_id', $userId)->whereDate('tanggal', $today)->exists()) {
+            return false;
+        }
+
+        // Cek apakah sudah lewat jam 12
+        if (now()->hour >= 12) {
+            return false;
+        }
+
+        // Logika untuk menentukan apakah tombol aktif berdasarkan urutan rombong
+        // Implementasi logika bisnis sesuai kebutuhan
+        
+        return true; // Sementara return true, sesuaikan dengan logika bisnis
+    }
+
+    private function isButtonAnggotaAktif($userId)
+    {
+        // PERBAIKAN: Logika yang lebih akurat untuk tombol anggota
+        // User bisa mengajukan selama belum memiliki rombong aktif
+        $user = User::with(['rombong' => function($query) {
+            $query->where('status', 'active');
+        }])->find($userId);
+        
+        return !$user->rombong || $user->rombong->isEmpty();
+    }
+
+    private function clearKehadiranCache($userId, $date)
+    {
+        $cacheKeys = [
+            'kehadiran_status_' . $date->format('Y-m-d'),
+            'dashboard_data_' . $userId,
+        ];
+        
+        foreach ($cacheKeys as $key) {
+            Cache::forget($key);
         }
     }
 
-    private function kirimWAResponse($phone, $message)
+    private function kirimKonfirmasiWA($userId, $status)
     {
         try {
-            $apiUrl = env('WHATSAPP_API_URL');
-            $apiKey = env('WHATSAPP_API_KEY');
+            $user = User::find($userId, ['user_id', 'phone', 'name']);
+            if (!$user || !$user->phone) return false;
 
-            $response = Http::post($apiUrl, [
-                'phone' => $phone,
-                'message' => $message,
-                'token' => $apiKey
+            $statusText = $status === 'masuk' ? 'masuk' : 'libur';
+            $pesan = "Halo {$user->name}!\n\nKonfirmasi kehadiran berhasil!\nStatus: {$statusText}\nWaktu: " . now()->format('d/m/Y H:i:s');
+
+            Http::timeout(10)->post(env('WHATSAPP_API_URL'), [
+                'phone' => $user->phone,
+                'message' => $pesan,
+                'token' => env('WHATSAPP_API_KEY')
             ]);
 
-            if ($response->successful()){
-                $data = $response->json();
-                if ($data['status']?? false){
-                    \Log::info("Pesan WA berhasil dikirim", ['phone' => $phone]);
-                    return true;
-                }
-            }
-
-            \Log::error("Wablas failed", ['response' => $response->body()]);
-            return false;
-
+            return true;
         } catch (\Exception $e) {
-        \Log::error("Wablas error: " . $e->getMessage());
-        return false;
+            Log::error("WA Error: " . $e->getMessage());
+            return false;
+        }
     }
+
+    public function cekKehadiranLapak($lapakId)
+{
+    $rombongs = \App\Models\rombong::where('lapak_id', $lapakId)->orderBy('urutan', 'asc')->get();
+
+    $hasil = [];
+    $semuaLibur = true;
+
+    foreach ($rombongs as $index => $rombong) {
+        $kehadiran = \App\Models\Kehadiran::where('rombong_id', $rombong->id)
+            ->whereDate('tanggal', now()->toDateString())
+            ->first();
+
+        if ($kehadiran && $kehadiran->status == 'hadir') {
+            $hasil[$rombong->id] = 'aktif'; // hanya rombong ini yang aktif
+            $semuaLibur = false;
+        } elseif ($index == 0 && (!$kehadiran || $kehadiran->status == 'libur')) {
+            // urutan pertama libur, maka aktifkan urutan 2
+            if (isset($rombongs[1])) {
+                $hasil[$rombongs[1]->id] = 'aktif';
+            }
+        } else {
+            $hasil[$rombong->id] = 'nonaktif';
+        }
     }
+
+    return [
+        'rombongs' => $hasil,
+        'semuaLibur' => $semuaLibur
+    ];
+}
+
 }

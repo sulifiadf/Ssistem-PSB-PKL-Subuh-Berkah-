@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Hash;
 use App\Models\registrasi_pertanyaan;
 use Illuminate\Validation\ValidationException;
+use App\Services\NotifikasiPersetujuan;
 
 class RegisterController extends Controller
 {
@@ -16,7 +17,7 @@ class RegisterController extends Controller
         return view('user.register');
     }
 
-    public function storeUser(Request $request){
+    public function storeUser(Request $request, NotifikasiPersetujuan $wa){
         try {
             // Validasi input data
             $validated = $request->validate([
@@ -72,6 +73,14 @@ class RegisterController extends Controller
                     'mulai_jual'         => $validated['mulai_jual'],
                     'penjaga_stand'      => $validated['penjaga_stand'],
                 ]);
+
+                $message = "🔔 Persetujuan User Baru\n\n"
+                . "Nama : {$user->name}\n"
+                . "Email : {$user->email}\n"
+                . "Tanggal Daftar : " . now()->format('d-m-Y H:i') . "\n\n"
+                . "✅ Setujui / ❌ Tolak di dashboard admin.";
+
+                $wa->notifyAdmin($message);
 
                 DB::commit();
 

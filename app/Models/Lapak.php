@@ -15,7 +15,8 @@ class Lapak extends Model
 
     public function rombongs()
     {
-        return $this->hasMany(rombong::class, 'lapak_id', 'lapak_id');
+        return $this->hasMany(rombong::class, 'lapak_id', 'lapak_id')
+            ->orderBy('urutan', 'asc');
     }
 
     public function waitingLists()

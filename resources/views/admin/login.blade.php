@@ -47,7 +47,7 @@
                                 Login
                             </button>
                         </div>
-                    <span class="text-black">Belum punya akun? daftar <a href="/admin/register" class="text-blue-500">disini</a></span><br>
+                    <span class="text-black">Belum punya akun? daftar <a href="{{route('admin.register.create')}}" class="text-blue-500">disini</a></span><br>
                     <span class="text-black"><a href="{{route('password.request')}}" class="text-blue-500">Lupa password</a></span>
                 </form>
             </div>

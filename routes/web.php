@@ -21,11 +21,25 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\LupaPasswordController;
 
+use App\Http\Controllers\HelpersController;
 
 
 Route::get('/', function () {
     return view('welcome');
 });
+
+// =================== CRON JOB URL ===================
+Route::get('/cron/kehadiran-reminder', function () {
+    Artisan::call('kehadiran:reminder');
+    return 'Reminder executed';
+});
+
+Route::get('/cron/auto-set-libur', function () {
+    Artisan::call('kehadiran:auto-libur');
+    return 'Auto set libur executed';
+});
+
+Route::get('/helpers/testWa', [HelpersController::class, 'testWa'] );
 
 // =================== ADMIN ===================
 Route::prefix('admin')->name('admin.')->group(function () {
@@ -70,6 +84,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
     
     //keuangan
     Route::resource('/keuangan', KeuanganController::class)->except(['show', 'create']);
+
+    Route::get('/kehadiran/status', [AdminKehadiranController::class, 'getStatusKehadiran'])->name('kehadiran.status');
+    Route::get('/kehadiran/detail/{userId}', [AdminKehadiranController::class, 'getDetailKehadiran'])->name('kehadiran.detail');
+    
 });
 
 // =================== USER ===================
@@ -89,9 +107,18 @@ Route::prefix('user')->name('user.')->group(function () {
         // Dashboard
         Route::get('/dashboard', [UserDashboardController::class, 'index'])->name('dashboard');
 
-        //tambah anggota rombong
-        Route::post('/user/rombong/store', [RombongController::class, 'store'])->name('rombong.store');
+        // =================== ROUTES YANG DIPERBAIKI ===================
+        
+        // Routes untuk kehadiran - PERBAIKAN
+        Route::post('/kehadiran/konfirmasi', [KehadiranController::class, 'konfirmasi'])
+            ->name('kehadiran.konfirmasi');
+            
+        Route::get('/api/kehadiran/status', [KehadiranController::class, 'getStatusKehadiran'])
+            ->name('api.kehadiran.status');
 
+        // Routes untuk rombong - PERBAIKAN
+        Route::post('/rombong/store', [RombongController::class, 'store'])
+            ->name('rombong.store');
 
         // =================== PROFILE ROUTES ===================
         Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
@@ -110,11 +137,13 @@ Route::prefix('user')->name('user.')->group(function () {
         Route::post('/profile/change-password', [ProfileController::class, 'changePassword'])->name('profile.change-password');
         Route::post('/profile/upload-bulk-images', [ProfileController::class, 'uploadBulkImages'])->name('profile.upload-bulk-images');
 
-        // =================== KEHADIRAN (User) ===================
+        // =================== KEHADIRAN (User) - ROUTES LAMA (backup) ===================
         Route::get('/kehadiran/status', [KehadiranController::class, 'getStatusKehadiran'])->name('kehadiran.status');
         Route::get('/kehadiran/detail/{userId}', [KehadiranController::class, 'getDetailKehadiran'])->name('kehadiran.detail');
-        Route::post('/kehadiran/konfirmasi', [KehadiranController::class, 'konfirmasi'])->name('kehadiran.konfirmasi');
-        Route::post('/kehadiran/konfirmasi-wa', [KehadiranController::class, 'konfirmasiViaWA'])->name('kehadiran.konfirmasi-wa');
+        
+        // Route konfirmasi lama (backup) - bisa dihapus jika yang baru sudah berfungsi
+        Route::post('/kehadiran/konfirmasi-lama', [KehadiranController::class, 'konfirmasiViaLogin'])
+            ->name('kehadiran.konfirmasi-lama');
     });
 
     
@@ -123,6 +152,7 @@ Route::prefix('user')->name('user.')->group(function () {
 // =================== LOGOUT ROUTE ===================
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout')->middleware('auth');
 
+// lupa password 
 Route::get('/lupa-password', [LupaPasswordController::class, 'lupaPassword'])
     ->name('password.request');
 
@@ -134,3 +164,22 @@ Route::get('/reset-password/{token}', [LupaPasswordController::class, 'resetForm
 
 Route::post('/reset-password', [LupaPasswordController::class, 'resetPassword'])
     ->name('password.update');
+
+
+//konfirmasi kehadiran via wa
+Route::get('/konfirmasi-kehadiran/{userId}/{token}', [KehadiranController::class, 'showKonfirmasiForm'])
+    ->name('kehadiran.form');
+Route::post('/konfirmasi-kehadiran/{userId}/{token}', [KehadiranController::class, 'konfirmasiViaWA'])
+    ->name('kehadiran.konfirmasi-wa');
+
+// =================== API ROUTES UNTUK FRONTEND ===================
+// Routes API yang bisa diakses tanpa prefix user (untuk AJAX calls)
+Route::prefix('api')->name('api.')->group(function () {
+    Route::get('/kehadiran/status', [KehadiranController::class, 'getStatusKehadiran'])
+        ->name('kehadiran.status');
+        
+    // Route untuk dashboard data (jika diperlukan)
+    Route::get('/dashboard/data', [UserDashboardController::class, 'getDashboardData'])
+        ->name('dashboard.data')
+        ->middleware('auth.custom:user');
+});

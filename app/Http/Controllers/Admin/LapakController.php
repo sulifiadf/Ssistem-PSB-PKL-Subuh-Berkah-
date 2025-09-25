@@ -8,6 +8,7 @@ use App\Models\Lapak;
 use App\Models\rombong;
 use App\Models\User;
 
+
 class LapakController extends Controller
 {
     public function index()
@@ -108,7 +109,6 @@ class LapakController extends Controller
             $pk = (new Rombong)->getKeyName();
 
             // update kolom lapak_id pada rombong yang dipilih
-            // pastikan tabel rombongs memang punya kolom lapak_id (nullable unsigned)
             Rombong::whereIn($pk, $ids)
                 ->update(['lapak_id' => $lapak->getKey()]);
         }

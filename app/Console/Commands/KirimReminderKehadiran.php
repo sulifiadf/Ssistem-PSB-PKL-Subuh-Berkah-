@@ -5,10 +5,10 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
-use App\Models\Kehadiran;
+use App\Models\kehadiran;
 use App\Models\User;
 use App\Models\Lapak;
-use App\Models\Rombong;
+use App\Models\rombong;
 use Carbon\Carbon;
 
 class KirimReminderKehadiran extends Command
@@ -33,9 +33,9 @@ class KirimReminderKehadiran extends Command
                 $rombongAktif = $this->getAnggotaBelumKonfirmasi($lapak->rombongs, $today);
 
                 if ($rombongAktif) {
-                    $kehadiran = Kehadiran::firstOrCreate(
+                    $kehadiran = kehadiran::firstOrCreate(
                         [
-                            'user_id' => $rombongAktif->user->id,
+                            'user_id' => $rombongAktif->user_id,
                             'tanggal' => $today
                         ],
                         [
@@ -65,8 +65,8 @@ class KirimReminderKehadiran extends Command
                             $rombongBerikutnya = $this->getNextRombong($lapak->rombongs, $rombongAktif->urutan);
                             if ($rombongBerikutnya) {
                                 $this->kirimPesanWA($rombongBerikutnya->user, $lapak->nama_lapak);
-                                Kehadiran::updateOrCreate(
-                                    ['user_id' => $rombongBerikutnya->user->id, 'tanggal' => $today],
+                                kehadiran::updateOrCreate(
+                                    ['user_id' => $rombongBerikutnya->user_id, 'tanggal' => $today],
                                     ['status' => null, 'pesan_wa_terkirim' => true, 'jam_reminder' => Carbon::now()]
                                 );
                                 $this->info("WA dialihkan ke {$rombongBerikutnya->user->name} (urutan {$rombongBerikutnya->urutan})");
@@ -83,7 +83,7 @@ class KirimReminderKehadiran extends Command
     private function getAnggotaBelumKonfirmasi($rombongs, $today)
     {
         foreach ($rombongs as $rombong) {
-            $kehadiran = Kehadiran::where('user_id', $rombong->user->id)
+            $kehadiran = kehadiran::where('user_id', $rombong->user_id)
                 ->whereDate('tanggal', $today)
                 ->first();
 
@@ -117,7 +117,7 @@ class KirimReminderKehadiran extends Command
         $pesan .= "Jika tidak ada konfirmasi, otomatis dialihkan ke anggota berikutnya.";
 
         try {
-            $response = Http::post('https://app.wablas.com/api/send-message', [
+            $response = Http::post(env('WHATSAPP_API_URL'), [
                 'phone' => $user->no_telp,
                 'message' => $pesan,
                 'token' => env('WHATSAPP_API_KEY')

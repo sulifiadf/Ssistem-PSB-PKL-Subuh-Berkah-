@@ -54,9 +54,11 @@
 
                         <div class="mb-4">
                             <label for="no_telp" class="block text-sm font-medium mb-1">No. WA</label>
-                            <input type="text" id="no_telp" name="no_telp" value="{{ old('no_telp') }}" required
-                                    class="w-full px-4 py-2 rounded-lg border border-gray-300
-                                    focus:outline-none focus:ring-2 focus:ring-[#b59356] focus:border-transparent">
+                            <input type="text" id="no_telp" name="no_telp" value="{{ old('no_telp', '62') }}" required
+                                class="w-full px-4 py-2 rounded-lg border border-gray-300
+                                focus:outline-none focus:ring-2 focus:ring-[#b59356] focus:border-transparent">
+
+                            <p class="mt-1 text-sm text-gray-500">Masukkan nomor tanpa angka 0. Contoh: 6281234567890</p>
                         </div>
 
                         <div class="mb-4">
