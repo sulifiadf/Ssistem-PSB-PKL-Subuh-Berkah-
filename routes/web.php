@@ -1,27 +1,28 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Password;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Artisan;
 
+use Illuminate\Support\Facades\Password;
+use App\Http\Controllers\HelpersController;
 use App\Http\Controllers\Admin\UserController;
-use App\Http\Controllers\Admin\KeuanganController;
+use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Admin\LapakController;
-use App\Http\Controllers\Admin\PerpindahanController;
-use App\Http\Controllers\Admin\WaitingListController;
-use App\Http\Controllers\Admin\AdminKehadiranController;
-use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
-
 use App\Http\Controllers\User\ProfileController;
 use App\Http\Controllers\User\RombongController;
-use App\Http\Controllers\User\KehadiranController;
-use App\Http\Controllers\User\DashboardController as UserDashboardController;
 
-use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
-use App\Http\Controllers\Auth\LupaPasswordController;
+use App\Http\Controllers\Admin\KeuanganController;
+use App\Http\Controllers\User\KehadiranController;
+use App\Http\Controllers\Admin\PerpindahanController;
 
-use App\Http\Controllers\HelpersController;
+use App\Http\Controllers\Admin\WaitingListController;
+use App\Http\Controllers\Auth\LupaPasswordController;
+use App\Http\Controllers\Admin\AdminKehadiranController;
+
+use App\Http\Controllers\User\DashboardController as UserDashboardController;
+use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 
 
 Route::get('/', function () {
@@ -72,7 +73,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/anggota/{id}/approve', [WaitingListController::class, 'approveAnggota'])->name('anggota.approve');
         Route::post('/anggota/{id}/reject', [WaitingListController::class, 'rejectAnggota'])->name('anggota.reject');
 
-        
+
     // CRUD User → khusus user
     Route::resource('/user', UserController::class)->except(['show']);
 
@@ -81,13 +82,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
     //lapak
     Route::resource('/lapak', LapakController::class)->except(['show']);
-    
+
     //keuangan
     Route::resource('/keuangan', KeuanganController::class)->except(['show', 'create']);
 
     Route::get('/kehadiran/status', [AdminKehadiranController::class, 'getStatusKehadiran'])->name('kehadiran.status');
     Route::get('/kehadiran/detail/{userId}', [AdminKehadiranController::class, 'getDetailKehadiran'])->name('kehadiran.detail');
-    
+
 });
 
 // =================== USER ===================
@@ -108,11 +109,11 @@ Route::prefix('user')->name('user.')->group(function () {
         Route::get('/dashboard', [UserDashboardController::class, 'index'])->name('dashboard');
 
         // =================== ROUTES YANG DIPERBAIKI ===================
-        
+
         // Routes untuk kehadiran - PERBAIKAN
         Route::post('/kehadiran/konfirmasi', [KehadiranController::class, 'konfirmasi'])
             ->name('kehadiran.konfirmasi');
-            
+
         Route::get('/api/kehadiran/status', [KehadiranController::class, 'getStatusKehadiran'])
             ->name('api.kehadiran.status');
 
@@ -140,19 +141,19 @@ Route::prefix('user')->name('user.')->group(function () {
         // =================== KEHADIRAN (User) - ROUTES LAMA (backup) ===================
         Route::get('/kehadiran/status', [KehadiranController::class, 'getStatusKehadiran'])->name('kehadiran.status');
         Route::get('/kehadiran/detail/{userId}', [KehadiranController::class, 'getDetailKehadiran'])->name('kehadiran.detail');
-        
+
         // Route konfirmasi lama (backup) - bisa dihapus jika yang baru sudah berfungsi
         Route::post('/kehadiran/konfirmasi-lama', [KehadiranController::class, 'konfirmasiViaLogin'])
             ->name('kehadiran.konfirmasi-lama');
     });
 
-    
+
 });
 
 // =================== LOGOUT ROUTE ===================
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout')->middleware('auth');
 
-// lupa password 
+// lupa password
 Route::get('/lupa-password', [LupaPasswordController::class, 'lupaPassword'])
     ->name('password.request');
 
@@ -177,9 +178,11 @@ Route::post('/konfirmasi-kehadiran/{userId}/{token}', [KehadiranController::clas
 Route::prefix('api')->name('api.')->group(function () {
     Route::get('/kehadiran/status', [KehadiranController::class, 'getStatusKehadiran'])
         ->name('kehadiran.status');
-        
+
     // Route untuk dashboard data (jika diperlukan)
     Route::get('/dashboard/data', [UserDashboardController::class, 'getDashboardData'])
         ->name('dashboard.data')
         ->middleware('auth.custom:user');
 });
+
+// Testing dari Faiz
