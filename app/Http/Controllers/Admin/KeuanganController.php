@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use App\Models\Keuangan;
+use App\Models\keuangan;
 
 
 class KeuanganController extends Controller
@@ -29,7 +29,7 @@ class KeuanganController extends Controller
             'keterangan' => 'nullable|string|max:255',
         ]);
 
-        Keuangan::create($request->all());
+        keuangan::create($request->all());
 
         return redirect()->route('admin.keuangan.index')->with('success', 'Data keuangan berhasil ditambahkan.');
     }
@@ -43,7 +43,7 @@ class KeuanganController extends Controller
             'keterangan' => 'nullable|string',
         ]);
 
-        $keuangan = Keuangan::findOrFail($id);
+        $keuangan = keuangan::findOrFail($id);
         $keuangan->update($request->all());
 
         return redirect()->route('admin.keuangan.index')->with('success', 'Data keuangan berhasil diperbarui.');
@@ -51,7 +51,7 @@ class KeuanganController extends Controller
 
     public function destroy($id)
     {
-        $keuangan = Keuangan::findOrFail($id);
+        $keuangan = keuangan::findOrFail($id);
         $keuangan->delete();
 
         return redirect()->route('admin.keuangan.index')->with('success', 'Data keuangan berhasil dihapus.');
@@ -59,7 +59,7 @@ class KeuanganController extends Controller
 
     public function edit($id)
     {
-        $keuangan = Keuangan::findOrFail($id);
+        $keuangan = keuangan::findOrFail($id);
         return view('admin.keuangan.edit', compact('keuangan'));
     }
 }

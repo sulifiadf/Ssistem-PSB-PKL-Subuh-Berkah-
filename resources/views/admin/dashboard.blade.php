@@ -2,7 +2,7 @@
 @section('title', 'dashboard')
 @section('content')
 
-    <div class="min-h-screen bg-gray-100 flex flex-col" x-data="{ openSidebar: false }">
+    <div class="min-h-screen bg-gray-100 flex flex-col pb-16" x-data="{ openSidebar: false }">
         <!-- Navbar -->
         <header
             class="bg-gradient-to-r from-[#b59356] to-[#CFB47D] text-white p-4 flex justify-between items-center shadow-md">
@@ -20,14 +20,23 @@
         </header>
 
         <!-- Konten Utama -->
-        <div class="cols-1 p-4">
-            <div class="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-1 gap-4 mb-4">
-                <!-- Card uang kas -->
+        <div class="flex-1 overflow-y-auto p-4">
+            {{-- Ringkasan Keuangan --}}
+            <div class="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-3 gap-4 mb-4">
                 <div onclick="window.location.href ='{{ route('admin.keuangan.index') }}' "
-                    class="bg-white rounded-lg shadow p-4 flex flex-col items-center">
-                    <span class="text-2xl font-bold text-blue-600">{{ number_format($jumlahUangKas) }}</span>
-                    <x-heroicon-o-currency-dollar class="h-6 w-6" stroke="#b59356" />
-                    <span class="text-sm font-semibold text-gray-500">Jumlah Uang Kas</span>
+                    class="bg-white rounded-lg shadow p-4 text-center cursor-pointer hover:shadow-lg transition-shadow">
+                    <h3 class="text-lg font-semibold text-green-800">Total Pemasukan</h3>
+                    <p class="text-2xl font-bold text-green-600">Rp {{ number_format($totalPemasukan, 0, ',', '.') }}</p>
+                </div>
+                <div onclick="window.location.href ='{{ route('admin.keuangan.index') }}' "
+                    class="bg-white rounded-lg shadow p-4 text-center cursor-pointer hover:shadow-lg transition-shadow">
+                    <h3 class="text-lg font-semibold text-red-800">Total Pengeluaran</h3>
+                    <p class="text-2xl font-bold text-red-600">Rp {{ number_format($totalPengeluaran, 0, ',', '.') }}</p>
+                </div>
+                <div onclick="window.location.href ='{{ route('admin.keuangan.index') }}' "
+                    class="bg-white rounded-lg shadow p-4 text-center cursor-pointer hover:shadow-lg transition-shadow">
+                    <h3 class="text-lg font-semibold text-blue-800">Saldo</h3>
+                    <p class="text-2xl font-bold text-blue-600">Rp {{ number_format($saldoAkhir, 0, ',', '.') }}</p>
                 </div>
             </div>
             <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-2 gap-4 mb-4">
@@ -47,7 +56,7 @@
             </div>
 
             {{--  Lapak + Modal --}}
-            <div x-data="{ open: false, foto: '', nama: '', pemilik: '', status: '' }">
+            <div x-data="{ open: false, foto: '', nama: '', pemilik: '', status: '', totalMasuk: 0, totalLibur: 0 }">
 
                 {{-- Detail Rombong (Modal) --}}
                 <div x-show="open" x-transition class="fixed inset-0 bg-opacity-50 flex items-center justify-center z-50">
@@ -60,106 +69,211 @@
                                 class="w-32 h-32 object-cover mx-auto rounded-lg mb-4 border-2 border-gray-200">
                             <h4 class="font-bold text-lg text-gray-700 mb-2" x-text="nama"></h4>
                             <p class="text-sm text-gray-600 mb-2" x-text="'Pemilik: ' + pemilik"></p>
-                            <span class="inline-block px-3 py-1 text-xs font-semibold rounded-full"
+
+                            {{-- Status Badge --}}
+                            <span class="inline-block px-3 py-1 text-xs font-semibold rounded-full mb-3"
                                 :class="{
                                     'bg-green-100 text-green-800': status === 'MASUK',
                                     'bg-red-100 text-red-800': status === 'LIBUR',
                                     'bg-yellow-100 text-yellow-800': status === 'MENUNGGU KONFIRMASI',
-                                    'bg-gray-100 text-gray-800': status === 'STANDBY'
+                                    'bg-gray-100 text-gray-800': status === 'SUDAH ADA YANG MASUK' ||
+                                        status === 'MENUNGGU GILIRAN' || status === 'USER PENDING' ||
+                                        status === 'USER TIDAK AKTIF'
                                 }"
                                 x-text="status">
                             </span>
+
+                            {{-- Count Statistics --}}
+                            <div class="flex justify-center gap-4 mt-3 pt-3 border-t border-gray-200">
+                                <div class="text-center">
+                                    <div class="text-green-600 font-bold text-lg" x-text="totalMasuk"></div>
+                                    <div class="text-xs text-gray-500">Total Masuk</div>
+                                </div>
+                                <div class="text-center">
+                                    <div class="text-red-600 font-bold text-lg" x-text="totalLibur"></div>
+                                    <div class="text-xs text-gray-500">Total Libur</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 {{-- Lapak --}}
                 <div class="bg-white rounded-lg shadow p-4 mb-4">
-                    <h3 class="font-semibold text-lg mb-2">Lapak Anggota</h3>
+                    <h3 class="font-semibold text-lg mb-2">Space Anggota</h3>
 
-                    <div class="flex gap-4 overflow-x-auto pb-2">
+                    <div class="flex gap-1 overflow-x-auto pb-2">
                         @foreach ($lapaks as $lapak)
-                            <div class="flex flex-col min-w-[220px] border rounded-lg shadow p-3"
+                            <div class="flex flex-col min-w-[110px] max-w-[120px] border rounded-lg shadow p-1"
                                 data-lapak-id="{{ $lapak->lapak_id }}" ondragover="event.preventDefault();"
                                 ondrop="dropRombong(event, {{ $lapak->lapak_id }})">
 
-                                <h4 class="text-sm font-semibold text-center mb-2 bg-gray-100 p-2 rounded">
-                                    {{ $lapak->nama_lapak }}
+                                <h4 class="text-xs font-semibold text-center mb-1 bg-gray-100 p-0.5 rounded">
+                                    {{ Str::limit($lapak->nama_lapak, 8) }}
                                 </h4>
 
                                 <div class="rombong-container">
                                     @if ($lapak->rombongs->count() > 0)
+                                        @php
+                                            // Cek apakah sudah ada yang masuk di lapak ini
+                                            $adaYangMasuk = false;
+                                            foreach ($lapak->rombongs as $rombong) {
+                                                if (
+                                                    $rombong->user &&
+                                                    in_array($rombong->user->status ?? '', ['approve', 'disetujui'])
+                                                ) {
+                                                    $kehadiranCheck = \App\Models\kehadiran::where(
+                                                        'user_id',
+                                                        $rombong->user_id,
+                                                    )
+                                                        ->whereDate('tanggal', now()->toDateString())
+                                                        ->where('status', 'masuk')
+                                                        ->exists();
+                                                    if ($kehadiranCheck) {
+                                                        $adaYangMasuk = true;
+                                                        break;
+                                                    }
+                                                }
+                                            }
+                                        @endphp
+
                                         @foreach ($lapak->rombongs as $index => $item)
                                             @php
-                                                $kehadiran = $kehadiranHariIni[$item->user_id] ?? null;
+                                                $today = now()->toDateString();
+
+                                                // Safe access untuk user
+                                                $userName = 'User Tidak Ditemukan';
+                                                $userStatus = 'unknown';
+                                                $totalMasuk = 0;
+                                                $totalLibur = 0;
+
+                                                if ($item->user) {
+                                                    $userName = $item->user->name;
+                                                    $userStatus = $item->user->status ?? 'pending';
+
+                                                    // Hitung total masuk dan libur hanya jika user ada
+                                                    $totalMasuk = \App\Models\kehadiran::where(
+                                                        'user_id',
+                                                        $item->user_id,
+                                                    )
+                                                        ->where('status', 'masuk')
+                                                        ->count();
+
+                                                    $totalLibur = \App\Models\kehadiran::where(
+                                                        'user_id',
+                                                        $item->user_id,
+                                                    )
+                                                        ->where('status', 'libur')
+                                                        ->count();
+                                                }
+
+                                                $kehadiran = null;
+                                                if ($item->user_id) {
+                                                    $kehadiran = \App\Models\kehadiran::where('user_id', $item->user_id)
+                                                        ->whereDate('tanggal', $today)
+                                                        ->first();
+                                                }
+
                                                 $urutanText = '#' . ($index + 1);
-                                                
-                                                // Default status
-                                                $warnaButton = 'bg-[#CFB47D] hover:bg-[#b89e65]';
-                                                $statusText = 'STANDBY';
-                                                $badgeColor = 'bg-gray-100 text-gray-800';
-                                                
-                                                // Cek jika ada data kehadiran
-                                                if ($kehadiran) {
-                                                    if ($kehadiran->pesan_wa_terkirim) {
+
+                                                // Default status berdasarkan kondisi user
+                                                if (!$item->user || !in_array($userStatus, ['approve', 'disetujui'])) {
+                                                    $warnaButton = 'bg-gray-400 cursor-not-allowed';
+                                                    $statusText =
+                                                        $userStatus === 'pending' ? 'USER PENDING' : 'USER TIDAK AKTIF';
+                                                    $badgeColor = 'bg-gray-100 text-gray-800';
+                                                } else {
+                                                    // User aktif, cek kehadiran
+                                                    $warnaButton = 'bg-gray-300 cursor-not-allowed';
+                                                    $statusText = 'MENUNGGU GILIRAN';
+                                                    $badgeColor = 'bg-gray-100 text-gray-800';
+
+                                                    // Cek jika ada data kehadiran
+                                                    if ($kehadiran) {
                                                         if ($kehadiran->status == 'masuk') {
                                                             $warnaButton = 'bg-green-500 hover:bg-green-600';
                                                             $statusText = 'MASUK';
                                                             $badgeColor = 'bg-green-100 text-green-800';
                                                         } elseif ($kehadiran->status == 'libur') {
-                                                            $warnaButton = 'bg-red-500 hover:bg-red-600';
+                                                            $warnaButton = 'bg-red-400 cursor-not-allowed';
                                                             $statusText = 'LIBUR';
                                                             $badgeColor = 'bg-red-100 text-red-800';
-                                                        } else {
-                                                            $warnaButton = 'bg-yellow-500 hover:bg-yellow-600 animate-pulse';
-                                                            $statusText = 'MENUNGGU KONFIRMASI';
-                                                            $badgeColor = 'bg-yellow-100 text-yellow-800';
                                                         }
                                                     } else {
-                                                        if ($kehadiran->status == 'masuk') {
-                                                            $warnaButton = 'bg-green-500 hover:bg-green-600';
-                                                            $statusText = 'MASUK (WA Belum)';
-                                                            $badgeColor = 'bg-green-100 text-green-800';
-                                                        } elseif ($kehadiran->status == 'libur') {
-                                                            $warnaButton = 'bg-red-500 hover:bg-red-600 ';
-                                                            $statusText = 'LIBUR (WA Belum)';
-                                                            $badgeColor = 'bg-red-100 text-red-800';
+                                                        // Belum ada data kehadiran - cek kondisi
+                                                        if ($adaYangMasuk) {
+                                                            // Sudah ada yang masuk di lapak ini
+                                                            $warnaButton = 'bg-gray-300 cursor-not-allowed';
+                                                            $statusText = 'SUDAH ADA YANG MASUK';
+                                                            $badgeColor = 'bg-gray-100 text-gray-800';
+                                                        } elseif ($index === 0) {
+                                                            // Rombong urutan pertama yang belum konfirmasi dan belum ada yang masuk
+                                                            $warnaButton =
+                                                                'bg-yellow-500 hover:bg-yellow-600 animate-pulse';
+                                                            $statusText = 'MENUNGGU KONFIRMASI';
+                                                            $badgeColor = 'bg-yellow-100 text-yellow-800';
+                                                        } else {
+                                                            // Rombong urutan lain menunggu giliran
+                                                            $warnaButton = 'bg-gray-300 cursor-not-allowed';
+                                                            $statusText = 'MENUNGGU GILIRAN';
+                                                            $badgeColor = 'bg-gray-100 text-gray-800';
                                                         }
                                                     }
                                                 }
-                                                
+
                                                 $fotoRombong = $item->foto_rombong
                                                     ? asset('storage/' . $item->foto_rombong)
                                                     : asset('img/no-image.png');
                                             @endphp
 
-                                            <div class="flex flex-col items-center min-w-[120px] mb-3" draggable="true"
+                                            <div class="flex flex-col items-center min-w-[70px] mb-1" draggable="true"
                                                 ondragstart="dragRombong(event, {{ $item->rombong_id }}, {{ $lapak->lapak_id }})"
                                                 data-user-id="{{ $item->user_id }}">
 
-                                                <span class="text-xs {{ $badgeColor }} px-2 py-1 rounded-full mb-1 font-semibold">
+                                                {{-- Badge urutan --}}
+                                                <span
+                                                    class="text-xs {{ $badgeColor }} px-1 py-0.5 rounded-full mb-0.5 font-semibold">
                                                     {{ $urutanText }}
                                                 </span>
 
+                                                {{-- Tombol Rombong --}}
                                                 <button
-                                                    class="{{ $warnaButton }} text-white text-sm font-medium rounded-lg px-3 py-2 shadow transition min-h-[40px] w-full text-center hover:scale-105"
+                                                    class="{{ $warnaButton }} text-white text-xs font-medium rounded-lg px-1 py-1 shadow transition min-h-[30px] w-full text-center hover:scale-105"
                                                     title="{{ $item->user_name }} - {{ $statusText }}"
                                                     @click="
                                                         open = true; 
                                                         foto = '{{ $fotoRombong }}'; 
                                                         nama = '{{ $item->nama_jualan }}';
-                                                        pemilik = '{{ $item->name }}';
-                                                        status = '{{ $statusText }}'
+                                                        pemilik = '{{ $userName }}';
+                                                        status = '{{ $statusText }}';
+                                                        totalMasuk = {{ $totalMasuk }};
+                                                        totalLibur = {{ $totalLibur }}
                                                     "
                                                     data-user-id="{{ $item->user_id }}">
-                                                    <span class="block truncate">{{ $item->nama_jualan }}</span>
-                                                    <small class="block text-xs opacity-75 truncate">{{ $item->user_name }}</small>
-                                                    <small class="block text-xs font-bold">{{ $statusText }}</small>
+                                                    <span
+                                                        class="block truncate text-xs">{{ Str::limit($item->nama_jualan, 6) }}</span>
+                                                    <small
+                                                        class="block text-xs opacity-75 truncate">{{ Str::limit($userName, 4) }}</small>
+
+                                                    {{-- Count Masuk & Libur --}}
+                                                    <div class="flex justify-center gap-0.5 mt-0.5 mb-0.5">
+                                                        <span
+                                                            class="text-xs bg-green-600 bg-opacity-90 px-0.5 py-0.5 rounded text-white font-bold shadow-sm">
+                                                            ✓ {{ $totalMasuk }}
+                                                        </span>
+                                                        <span
+                                                            class="text-xs bg-red-600 bg-opacity-90 px-0.5 py-0.5 rounded text-white font-bold shadow-sm">
+                                                            ✗ {{ $totalLibur }}
+                                                        </span>
+                                                    </div>
+
+                                                    <small
+                                                        class="block text-xs font-bold">{{ Str::limit($statusText, 8) }}</small>
                                                 </button>
                                             </div>
                                         @endforeach
                                     @else
-                                        <p class="text-gray-500 text-sm text-center">Belum ada anggota</p>
+                                        <p class="text-gray-500 text-xs text-center">Belum ada anggota</p>
                                     @endif
                                 </div>
                             </div>
@@ -171,8 +285,8 @@
 
             {{-- Waiting List User --}}
             <div onclick="window.location.href='{{ route('admin.waitinglist') }}'"
-                class="mt-6 bg-white rounded-lg shadow p-4 mb-6">
-                <h2 class="font-semibold mb-2">Waiting List User</h2>
+                class="mt-4 bg-white rounded-lg shadow p-3 mb-4">
+                <h2 class="font-semibold mb-2 text-sm">Waiting List User</h2>
                 <ul class="text-sm text-gray-600 space-y-2">
                     @forelse($users as $user)
                         <li class="flex justify-between items-center py-2">
@@ -200,13 +314,13 @@
 
             {{-- Waiting List Anggota --}}
             <div onclick="window.location.href='{{ route('admin.waitinglist') }}'"
-                class="mt-6 bg-white rounded-lg shadow p-4 mb-6">
-                <h2 class="font-semibold mb-2">Waiting List Anggota</h2>
+                class="mt-4 bg-white rounded-lg shadow p-3 mb-20">
+                <h2 class="font-semibold mb-2 text-sm">Waiting List Anggota</h2>
                 <ul class="text-sm text-gray-600 space-y-2">
                     @forelse($pendingAnggota as $waiting)
                         <li class="flex justify-between items-center py-2">
                             <span>{{ $waiting->user->name }} ({{ $waiting->user->email }}) - Lapak:
-                                {{ $waiting->lapak->nama_lapak }}</span>
+                                {{ $waiting->lapak ? $waiting->lapak->nama_lapak : 'Belum memilih lapak' }}</span>
                             <div class="flex gap-2">
                                 <form method="POST"
                                     action="{{ route('admin.anggota.approve', $waiting->waiting_list_id) }}">
@@ -244,22 +358,24 @@
                     <button @click="openSidebar = false" class="text-gray-600 hover:text-black">&times;</button>
                 </div>
                 <nav class="p-4 space-y-3">
-                    <a href="/admin/dashboard" class="block text-gray-700 hover:text-[#b59356]">Beranda</a>
-                    <a href="/admin/user" class="block text-gray-700 hover:text-[#b59356]">User</a>
-                    <a href="/admin/lapak" class="block text-gray-700 hover:text-[#b59356]">Lapak</a>
-                    <a href="/admin/waitinglist" class="block text-gray-700 hover:text-[#b59356]">Waiting List</a>
-                    <a href="/admin/keuangan" class="block text-gray-700 hover:text-[#b59356]">Manajemen Keuangan</a>
+                    <a href="{{ route('admin.dashboard') }}" class="block text-gray-700 hover:text-[#b59356]">Beranda</a>
+                    <a href="{{ route('admin.user.index') }}" class="block text-gray-700 hover:text-[#b59356]">User</a>
+                    <a href="{{ route('admin.lapak.index') }}" class="block text-gray-700 hover:text-[#b59356]">Lapak</a>
+                    <a href="{{ route('admin.waitinglist') }}" class="block text-gray-700 hover:text-[#b59356]">Waiting
+                        List</a>
+                    <a href="{{ route('admin.keuangan.index') }}"
+                        class="block text-gray-700 hover:text-[#b59356]">Manajemen Keuangan</a>
                 </nav>
             </aside>
         </div>
 
         <!-- Bottom Navigation (mobile) -->
         <nav class="bg-white border-t p-2 flex justify-around fixed bottom-0 w-full">
-            <a href="/admin/dashboard" class="flex flex-col items-center text-gray-500">
+            <a href="{{ route('admin.dashboard') }}" class="flex flex-col items-center text-gray-500">
                 <x-heroicon-o-home class="h-6 w-6 mb-1" fill="#b59356" viewBox="0 0 24 24" stroke="#b59356" />
                 <span class="text-xs">Beranda</span>
             </a>
-            <a href="/admin/user" class="flex flex-col items-center text-gray-500">
+            <a href="{{ route('admin.user.index') }}" class="flex flex-col items-center text-gray-500">
                 <x-heroicon-o-user class="h-6 w-6 mb-1" fill="#b59356" viewBox="0 0 24 24" stroke="#b59356" />
                 <span class="text-xs">Users</span>
             </a>
@@ -353,27 +469,35 @@
         }
 
         function updateButtonColors() {
-            fetch('{{ route("admin.kehadiran.status") }}') // Ganti dengan route web yang sesuai
+            fetch('{{ route('admin.kehadiran.status') }}') // Ganti dengan route web yang sesuai
                 .then(response => response.json())
                 .then(data => {
                     data.forEach(item => {
                         const button = document.querySelector(`button[data-user-id="${item.user_id}"]`);
                         if (button) {
-                            // Update warna button
-                            button.className = 
-                                `${item.warnaButton} text-white text-sm font-medium rounded-lg px-3 py-2 shadow transition min-h-[40px] w-full text-center hover:scale-105`;
+                            // Update warna button berdasarkan status dan urutan
+                            let warnaButton = item.warnaButton || 'bg-gray-300 cursor-not-allowed';
+                            let statusText = item.statusText || 'MENUNGGU GILIRAN';
+
+                            // Tambahkan animate-pulse untuk yang menunggu konfirmasi
+                            if (statusText === 'MENUNGGU KONFIRMASI') {
+                                warnaButton += ' animate-pulse';
+                            }
+
+                            button.className =
+                                `${warnaButton} text-white text-xs font-medium rounded-lg px-1 py-1 shadow transition min-h-[30px] w-full text-center hover:scale-105`;
 
                             // Update status text
                             const smallElement = button.querySelector('small:last-child');
                             if (smallElement) {
-                                smallElement.textContent = item.statusText;
+                                smallElement.textContent = statusText;
                             }
 
                             // Update title
-                            button.title = `${item.user_name} - ${item.statusText}`;
+                            button.title = `${item.user_name} - ${statusText}`;
 
                             // Add/remove pulse animation
-                            if (item.statusText === 'MENUNGGU KONFIRMASI') {
+                            if (statusText === 'MENUNGGU KONFIRMASI') {
                                 button.classList.add('animate-pulse');
                             } else {
                                 button.classList.remove('animate-pulse');
@@ -393,14 +517,19 @@
                     <div class="text-center">
                         <h4 class="font-semibold text-lg">${userName}</h4>
                         <span class="px-3 py-1 rounded-full text-sm ${getStatusBadgeClass(data.status)}">
-                            ${getStatusText(data.status)}
+                            ${data.statusText}
                         </span>
+                        <div class="text-xs text-gray-500 mt-1">Urutan #${data.urutan || 'N/A'}</div>
                     </div>
                     
                     <div class="space-y-2 text-sm">
                         <div class="flex justify-between">
                             <span class="text-gray-600">Tanggal:</span>
                             <span>${data.tanggal}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Status:</span>
+                            <span class="font-semibold">${data.statusText}</span>
                         </div>
                         <div class="flex justify-between">
                             <span class="text-gray-600">WA Terkirim:</span>
@@ -446,6 +575,8 @@
                     return 'bg-red-100 text-red-800';
                 case null:
                     return 'bg-yellow-100 text-yellow-800';
+                case 'sudah_ada_yang_masuk':
+                    return 'bg-gray-100 text-gray-800';
                 default:
                     return 'bg-gray-100 text-gray-800';
             }
@@ -458,9 +589,11 @@
                 case 'libur':
                     return 'LIBUR';
                 case null:
-                    return 'MENUNGGU';
+                    return 'MENUNGGU KONFIRMASI';
+                case 'sudah_ada_yang_masuk':
+                    return 'SUDAH ADA YANG MASUK';
                 default:
-                    return 'STANDBY';
+                    return 'MENUNGGU GILIRAN';
             }
         }
 

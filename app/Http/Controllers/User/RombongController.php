@@ -5,9 +5,11 @@ namespace App\Http\Controllers\User;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\User;
-use App\Models\Rombong;
+use App\Models\rombong;
 use App\Models\Lapak;
 use App\Models\WaitingList;
+use App\Models\kehadiran;
+use App\Http\Controllers\User\KehadiranController;
 
 class RombongController extends Controller
 {
@@ -25,21 +27,27 @@ class RombongController extends Controller
             $path = $request->file('foto_rombong')->store('rombong', 'public');
         }
 
-        // cek jika sudah mengirim pengajuan sebelumnya
-        $existingPengajuan = WaitingList::where('user_id', auth()->id())->first();
-        if ($existingPengajuan) {
+        // PRIORITAS: Validasi menggunakan KehadiranController dulu (menentukan apakah user bisa mengajukan)
+        $kehadiranController = new KehadiranController();
+        $validation = $kehadiranController->validatePengajuanAnggota($request->lapak_id, auth()->id());
+        
+        if (!$validation['bisa_diajukan']) {
             return response()->json([
                 'success' => false,
-                'message' => 'Kamu sudah ada di waiting list.'
+                'message' => $validation['pesan'] ?? 'Tidak dapat mengajukan ke lapak ini'
             ]);
         }
 
-        // cek rombong user
-        $existingRombong = Rombong::where('user_id', auth()->id())->first();
-        if (!$existingRombong) {
+        // cek jika sudah mengirim pengajuan pending ke lapak yang sama
+        $existingPengajuan = WaitingList::where('user_id', auth()->id())
+            ->where('lapak_id', $request->lapak_id)
+            ->where('status', 'pending')
+            ->first();
+            
+        if ($existingPengajuan) {
             return response()->json([
                 'success' => false,
-                'message' => 'Anda belum memiliki rombong, lengkapi profil terlebih dahulu.'
+                'message' => 'Anda sudah mengirim pengajuan ke lapak ini yang sedang dalam proses persetujuan.'
             ]);
         }
 
@@ -60,7 +68,7 @@ class RombongController extends Controller
 
     public function update(Request $request, $id)
 {
-    $rombong = Rombong::findOrFail($id);
+    $rombong = rombong::findOrFail($id);
 
     $request->validate([
         'nama_jualan'   => 'required|string|max:255',

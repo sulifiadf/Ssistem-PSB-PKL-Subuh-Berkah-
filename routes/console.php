@@ -15,8 +15,5 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-Schedule::command('kehadiran:reminder')->dailyAt('09:00');
-Schedule::command('kehadiran:auto-libur')->dailyAt('12:00');
 
-Schedule::command('kehadiran:reminder')->dailyAt('10:00');
 

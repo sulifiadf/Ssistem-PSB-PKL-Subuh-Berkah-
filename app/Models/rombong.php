@@ -18,7 +18,8 @@ class rombong extends Model
         'latitude',
         'longitude',
         'jenis',
-        'urutan'
+        'urutan',
+        'berlaku_hingga'
     ];
 
     public function user()

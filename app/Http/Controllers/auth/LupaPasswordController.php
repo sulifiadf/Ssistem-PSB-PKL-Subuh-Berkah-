@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers\auth;
 
+use App\Models\User;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
-use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Auth\Events\PasswordReset;
@@ -12,48 +12,55 @@ use Illuminate\Auth\Events\PasswordReset;
 
 class LupaPasswordController extends Controller
 {
-    public function lupaPassword(){
-        return view('auth.lupa-password');
+    // Direct password reset (bypass email verification)
+    public function directResetForm(){
+        return view('auth.reset-password');
     }
 
-    public function kirimLink(Request $request){
-        $request->validate(['email' => 'required|email']);
-
-        $status = Password::sendResetLink(
-            $request->only('email')
-        );
-
-        return $status === Password::RESET_LINK_SENT
-                    ? back()->with(['status' => __($status)])
-                    : back()->withErrors(['email' => __($status)]);
-    }
-
-    public function resetForm($token){
-        return view('auth.reset-password', ['token' => $token]);
-    }
-
-    public function resetPassword(Request $request){
+    public function directResetPassword(Request $request){
         $request->validate([
-            'token' => 'required',
-            'email' => 'required|email',
-            'password' => 'required|min:6|confirmed',
+            'email' => 'required|email|exists:users,email',
+            'password' => [
+                'required',
+                'string',
+                'min:6',
+                'confirmed'
+            ],
+        ], [
+            'email.required' => 'Email wajib diisi.',
+            'email.email' => 'Format email tidak valid.',
+            'email.exists' => 'Email tidak ditemukan dalam sistem.',
+            'password.required' => 'Password wajib diisi.',
+            'password.min' => 'Password minimal 6 karakter.',
+            'password.confirmed' => 'Konfirmasi password tidak cocok.',
         ]);
 
-        $status = Password::reset(
-            $rquest->only('email', 'password', 'password_confirmation', 'token'),
-            function ($user, $password) {
-                $user->forceFill([
-                    'password' => Hash::make($password),
-                ])->setRememberToken(Str::random(60));
-
-                $user->save();
-
-                event(new PasswordReset($user));
+        try {
+            // Find user by email
+            $user = User::where('email', $request->email)->first();
+            
+            if (!$user) {
+                return back()->withErrors(['email' => 'Email tidak ditemukan dalam sistem.']);
             }
-        );
 
-        return $status === Password::PASSWORD_RESET
-                    ? redirect()->route('login')->with('status', __($status))
-                    : back()->withErrors(['email' => [__($status)]]);
+            // Update password
+            $user->forceFill([
+                'password' => Hash::make($request->password),
+            ])->setRememberToken(Str::random(60));
+
+            $user->save();
+
+            // Fire the password reset event
+            event(new PasswordReset($user));
+
+            // Redirect to login with success message
+            return redirect()->route('user.login')->with([
+                'status' => 'Password berhasil direset! Silakan login dengan password baru.',
+                'success' => true
+            ]);
+
+        } catch (\Exception $e) {
+            return back()->withErrors(['general' => 'Terjadi kesalahan saat mereset password. Silakan coba lagi.']);
+        }
     }
 }

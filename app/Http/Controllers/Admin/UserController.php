@@ -31,29 +31,49 @@ class UserController extends Controller
     {
         $request->validate([
             'name'        => 'required|string|max:255',
-            'alamat'      => 'required|string',
+            'alamat'      => 'required|string|max:500',
             'email'       => 'required|email|unique:users,email',
-            'no_telp'     => 'required|string|max:15',
+            'no_telp'     => 'required|string|regex:/^62[0-9]{9,13}$/|max:15',
             'nama_jualan' => 'required|string|max:255',
             'password'    => 'required|string|min:6|confirmed',
-            'role'        => 'required|in:user,admin',
             'foto_rombong'=> 'nullable|image|mimes:jpg,jpeg,png|max:2048',
-            'status'      => 'required|in:tetap,sementara,pending,approve,rejected',
+            'status'      => 'required|in:pending,approve,rejected',
+        ], [
+            'password.min' => 'Password minimal 6 karakter.',
+            'no_telp.regex' => 'Nomor telepon harus dimulai dengan 62 dan diikuti 9-13 digit angka.',
+            'status.in' => 'Status harus salah satu dari: pending, approve, rejected.',
         ]);
 
-        $data = $request->only([
-            'name','alamat','email','no_telp','nama_jualan','status','role'
-        ]);
-        $data['password'] = Hash::make($request->password);
+        try {
+            // Create user with role 'user' only (security: admin cannot create other admins)
+            $userData = $request->only([
+                'name', 'alamat', 'email', 'no_telp', 'status'
+            ]);
+            $userData['password'] = Hash::make($request->password);
+            $userData['role'] = 'user'; // Force role to user for security
 
-        if ($request->hasFile('foto_rombong')) {
-            $data['foto_rombong'] = $request->file('foto_rombong')->store('rombong', 'public');
+            $user = User::create($userData);
+
+            // Create rombong data separately for better data integrity
+            $rombongData = [
+                'user_id' => $user->user_id,
+                'nama_jualan' => $request->nama_jualan,
+            ];
+
+            if ($request->hasFile('foto_rombong')) {
+                $rombongData['foto_rombong'] = $request->file('foto_rombong')->store('rombong', 'public');
+            }
+
+            \App\Models\rombong::create($rombongData);
+
+            return redirect()->route('admin.user.index')
+                ->with('success', 'User berhasil ditambahkan dengan aman.');
+
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['error' => 'Terjadi kesalahan saat menyimpan data. Silakan coba lagi.']);
         }
-
-        User::create($data);
-
-        return redirect()->route('admin.user.index')
-            ->with('success', 'User berhasil ditambahkan');
     }
 
     // Form edit user
@@ -67,31 +87,73 @@ class UserController extends Controller
     {
         $request->validate([
             'name'        => 'required|string|max:255',
-            'alamat'      => 'required|string',
+            'alamat'      => 'required|string|max:500',
             'email'       => 'required|email|unique:users,email,' . $user->user_id. ',user_id',
-            'no_telp'     => 'required|string|max:15',
+            'no_telp'     => 'required|string|regex:/^62[0-9]{9,13}$/|max:15',
             'nama_jualan' => 'required|string|max:255',
             'foto_rombong'=> 'nullable|image|mimes:jpg,jpeg,png|max:2048',
-            'status'      => 'required|in:tetap,sementara,pending,approve,rejected',
+            'status'      => 'required|in:pending,approve,rejected',
+        ], [
+            'no_telp.regex' => 'Nomor telepon harus dimulai dengan 62 dan diikuti 9-13 digit angka.',
+            'status.in' => 'Status harus salah satu dari: pending, approve, rejected.',
         ]);
 
-        $data = $request->only(['name','alamat','email','no_telp','nama_jualan','status']);
+        try {
+            // Update user data (prevent role modification for security)
+            $userData = $request->only(['name','alamat','email','no_telp','status']);
+            $user->update($userData);
 
-        if ($request->hasFile('foto_rombong')) {
-            $data['foto_rombong'] = $request->file('foto_rombong')->store('rombong', 'public');
+            // Update atau create rombong data
+            $rombong = $user->rombong ?: new \App\Models\rombong();
+            $rombong->user_id = $user->user_id;
+            $rombong->nama_jualan = $request->nama_jualan;
+
+            if ($request->hasFile('foto_rombong')) {
+                // Hapus foto lama jika ada
+                if ($rombong->foto_rombong && \Storage::disk('public')->exists($rombong->foto_rombong)) {
+                    \Storage::disk('public')->delete($rombong->foto_rombong);
+                }
+                $rombong->foto_rombong = $request->file('foto_rombong')->store('rombong', 'public');
+            }
+
+            $rombong->save();
+
+            return redirect()->route('admin.user.index')
+                ->with('success', 'User berhasil diperbarui dengan aman.');
+
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['error' => 'Terjadi kesalahan saat memperbarui data. Silakan coba lagi.']);
         }
-
-        $user->update($data);
-
-        return redirect()->route('admin.user.index')
-            ->with('success', 'User berhasil diperbarui');
     }
 
     // Hapus user
     public function destroy(User $user)
     {
-        $user->delete();
-        return redirect()->route('admin.user.index')
-            ->with('success', 'User berhasil dihapus');
+        try {
+            // Security: Prevent admin from deleting other admin accounts
+            if ($user->role === 'admin') {
+                return redirect()->route('admin.user.index')
+                    ->withErrors(['error' => 'Tidak dapat menghapus akun admin lain untuk keamanan sistem.']);
+            }
+
+            // Delete related rombong photos from storage
+            if ($user->rombong && $user->rombong->foto_rombong) {
+                if (\Storage::disk('public')->exists($user->rombong->foto_rombong)) {
+                    \Storage::disk('public')->delete($user->rombong->foto_rombong);
+                }
+            }
+
+            // Delete user (will cascade delete related data)
+            $user->delete();
+            
+            return redirect()->route('admin.user.index')
+                ->with('success', 'User berhasil dihapus dengan aman.');
+
+        } catch (\Exception $e) {
+            return redirect()->route('admin.user.index')
+                ->withErrors(['error' => 'Terjadi kesalahan saat menghapus user. Silakan coba lagi.']);
+        }
     }
 }

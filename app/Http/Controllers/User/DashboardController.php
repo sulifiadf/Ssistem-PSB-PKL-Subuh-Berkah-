@@ -16,11 +16,18 @@ class DashboardController extends Controller
     {
         $user = Auth::user();
         $currentUserId = $user->user_id;
-        $today = now()->toDateString();
 
+        // Data dasar dashboard
         $totalTetap = rombong::where('jenis', 'tetap')->count();
         $totalSementara = rombong::where('jenis', 'sementara')->count();
-        $jumlahUangKas = keuangan::where('jenis', 'pemasukan')->sum('jumlah');
+        
+        // Data keuangan untuk 3 card
+        $totalPemasukan = keuangan::where('jenis', 'pemasukan')->sum('jumlah');
+        $totalPengeluaran = keuangan::where('jenis', 'pengeluaran')->sum('jumlah');
+        $saldoAkhir = $totalPemasukan - $totalPengeluaran;
+
+        // Data keuangan untuk tabel rekapan (hanya read-only untuk user)
+        $keuangans = keuangan::orderBy('tanggal', 'desc')->take(10)->get(); // Ambil 10 data terbaru
 
         // Ambil semua lapak beserta rombong + user pemiliknya berdasarkan urutan
         $lapaks = Lapak::with(['rombongs' => function($query){
@@ -28,147 +35,76 @@ class DashboardController extends Controller
         }])->with(['rombongs.user'])
             ->get();
 
+        // Tambahkan status konfirmasi untuk setiap rombong
+        $kehadiranController = new \App\Http\Controllers\User\KehadiranController();
+        foreach($lapaks as $lapak) {
+            foreach($lapak->rombongs as $rombong) {
+                if($rombong->user) {
+                    $statusInfo = $kehadiranController->getStatusKonfirmasi($rombong->user_id);
+                    $rombong->statusInfo = $statusInfo;
+                }
+            }
+        }
 
         // Ambil daftar lapak yang SUDAH disetujui untuk user ini
         $approvedLapakIds = WaitingList::where('user_id',$currentUserId)
             ->where('status', 'disetujui')
             ->pluck('lapak_id')
             ->toArray();
-        
-        //ambil rombong user
+
+        // Ambil rombong user
         $userRombong = rombong::where('user_id', $currentUserId)->first();
 
-        //apakah pernah mengajukan anggota
+        // Apakah pernah mengajukan anggota
         $userHasAnggota = waitingList::where('user_id', $currentUserId)->exists();
 
-        $isLewatJam12 = now()->hour >=12;
+        // Panggil KehadiranController untuk data kehadiran
+        $kehadiranController = new \App\Http\Controllers\User\KehadiranController();
+        $kehadiranData = $kehadiranController->getDashboardData($currentUserId);
 
-        $kehadiranHariIni = kehadiran::where('user_id', $currentUserId)
-            ->whereDate('tanggal', $today)
-            ->first();
+        // Extract individual variables untuk backward compatibility
+        $kehadiranHariIni = $kehadiranData['kehadiranHariIni'] ?? null;
+        $sudahKonfirmasiHariIni = $kehadiranData['sudahKonfirmasiHariIni'] ?? false;
+        $statusKonfirmasi = $kehadiranData['statusKonfirmasi'] ?? [];
+        $isLewatJam12 = $kehadiranData['isLewatJam12'] ?? false;
+        $showBatasWaktu = $kehadiranData['showBatasWaktu'] ?? false;
+        $batasJamUrutan1 = $kehadiranData['batasJamUrutan1'] ?? 12;
+        $buttonKonfirmasiAktif = $kehadiranData['buttonKonfirmasiAktif'] ?? false;
+        $buttonAnggotaAktif = $kehadiranData['buttonAnggotaAktif'] ?? false;
+        $historyKehadiran = $kehadiranData['historyKehadiran'] ?? collect();
+        $rombongAktifSekarang = $kehadiranData['rombongAktifSekarang'] ?? null;
+        $konfirmasiInfo = $kehadiranData['konfirmasiInfo'] ?? [];
 
-        $sudahKonfirmasiHariIni = $kehadiranHariIni !== null;
-
-        if($isLewatJam12 && !$sudahKonfirmasiHariIni){
-            $kehadiranHariIni = kehadiran::create([
-                'user_id' => $currentUserId,
-                'tanggal' => $today,
-                'status' => 'libur',
-                'keterangan' => 'Auto-generated: Batas waktu absensi telah lewat'
-            ]);
-            $sudahKonfirmasiHariIni = true;
+        // Pastikan data tidak null untuk mencegah error di view
+        if ($sudahKonfirmasiHariIni && !$kehadiranHariIni) {
+            // Jika sudah konfirmasi tapi kehadiranHariIni null, ambil ulang dari database
+            $kehadiranHariIni = kehadiran::where('user_id', $currentUserId)
+                ->whereDate('tanggal', now()->toDateString())
+                ->first();
         }
-
-        //konfirmasi berdasarkan urutan rombong
-        $buttonKonfirmasiAktif = false;
-        $buttonAnggotaAktif = false;
-        $rombongAktifSekarang = null;
-        $semuaRombongLibur = true;
-
-        foreach($lapaks as $lapak){
-            $rombongAktifLapak = null;
-            $adaRombongMasuk = false;
-            $semuaRombongLapakLibur = true;
-
-            foreach($lapak->rombongs as $rombong){
-                if($rombong->user){
-                    $kehadiranRombong = kehadiran::where('user_id', $rombong->user->user_id)
-                        ->whereDate('tanggal', $today)
-                        ->first();
-
-                        $statusRombong = $kehadiranRombong ? $kehadiranRombong->status : null;
-
-                        //jika rombong ini masuk
-                        if($statusRombong === 'masuk'){
-                            $adaRombongMasuk = true;
-                            $semuaRombongLapakLibur = false;
-                            $semuaRombongLibur = false;
-                            break;
-                        }
-
-                        if(!$statusRombong && !$isLewatJam12){
-                            if (!$rombongAktifLapak) {
-                                $rombongAktifLapak = $rombong;
-                            }
-
-                            if ($rombong->user->user_id == $currentUserId) {
-                                $rombongAktifSekarang = $rombongAktifLapak;
-                            }
-                        }
-
-                        //jika ada rombong yang tidak libur
-                        if($statusRombong !== 'libur'){
-                            $semuaRombongLapakLibur = false;
-                            $semuaRombongLibur = false;
-                        }
-                }
-            }
-
-            //jika ada rombong yang masuk, maka button konfirmasi tidak aktif untuk rombong setelahnya
-            if($adaRombongMasuk){
-                continue;
-            }
-
-            if($rombongAktifLapak && $rombongAktifLapak->user->user_id == $currentUserId){
-                $buttonKonfirmasiAktif = true;
-            }
-
-            //jika semua rombong di lapak ini libur, button + anggota aktif
-            if($semuaRombongLapakLibur){
-                $userAnggotaLapak = $lapak->rombongs->contains('user_id', $currentUserId);
-
-                if($userAnggotaLapak){
-                    $buttonAnggotaAktif = true;
-                }    
-            }
-        }
-
-        //user bisa mengajuakn anggota jika belum pernh mengajukan
-        if(!$userHasAnggota){
-            $buttonAnggotaAktif = true;
-        }
-
-        // //apakah semua anggota libur
-        // $semuaLibur = true;
-
-        // foreach ($lapaks as $lapak) {
-        //     foreach ($lapak->rombongs as $rombong) {
-        //         if ($rombong->user) {
-        //             $kehadiran = kehadiran::where('user_id', $rombong->user->user_id)
-        //                 ->whereDate('tanggal', $today)
-        //                 ->first();
-
-        //             if (!$kehadiran || $kehadiran->status != 'libur') {
-        //                 $semuaLibur = false;
-        //                 break 2;
-        //             }
-        //         }
-        //     }
-        // }
-
-        // if ($semuaLibur){
-        //     $buttonAnggota = true;
-        // }
-
-        $historyKehadiran = kehadiran::where('user_id', $currentUserId)
-            ->orderBy('tanggal', 'desc')
-            ->get();
 
         return view('user.dashboard', compact(
             'lapaks', 
             'approvedLapakIds',
             'totalTetap',
             'totalSementara',
-            'jumlahUangKas',
+            'totalPemasukan',
+            'totalPengeluaran',
+            'saldoAkhir',
             'userRombong',
+            'userHasAnggota',
+            'kehadiranHariIni',
+            'sudahKonfirmasiHariIni',
+            'statusKonfirmasi',
+            'isLewatJam12',
+            'showBatasWaktu',
+            'batasJamUrutan1',
             'buttonKonfirmasiAktif',
             'buttonAnggotaAktif',
-            'userHasAnggota',
             'historyKehadiran',
-            'sudahKonfirmasiHariIni',
-            'kehadiranHariIni',
-            'isLewatJam12',
-            'rombongAktifSekarang'
+            'rombongAktifSekarang',
+            'konfirmasiInfo',
+            'keuangans'
         ));
     }
 }

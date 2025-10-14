@@ -16,7 +16,7 @@ class LapakController extends Controller
         // Ambil lapak beserta rombongs + user relasi
         $lapaks   = Lapak::with(['rombongs.user'])->get();
         $users    = User::all();
-        $rombongs = Rombong::with('user')->get();
+        $rombongs = rombong::with('user')->get();
 
 
         // kirim plural & singular supaya view yang lama tetap kompatibel
@@ -58,7 +58,7 @@ class LapakController extends Controller
 
             // update kolom lapak_id pada rombong yang dipilih
             // pastikan tabel rombongs memang punya kolom lapak_id (nullable unsigned)
-            Rombong::whereIn($pk, $ids)
+            rombong::whereIn($pk, $ids)
                 ->update(['lapak_id' => $lapak->getKey()]);
         }
 
@@ -70,7 +70,7 @@ class LapakController extends Controller
     {
         $lapak = Lapak::with('rombongs.user')->findOrFail($userId);
         $users = User::all();
-        $rombongs = Rombong::with('user')->get();
+        $rombongs = rombong::with('user')->get();
 
         return view('admin.edit-lapak', compact('lapak', 'users', 'rombongs'));
     }
@@ -101,7 +101,7 @@ class LapakController extends Controller
         $ids = array_values(array_filter(array_unique($ids)));
 
         // reset lapak_id semua rombong yang sebelumnya terhubung ke lapak ini
-        Rombong::where('lapak_id', $lapak->getKey())
+        rombong::where('lapak_id', $lapak->getKey())
             ->update(['lapak_id' => null]);
 
         if (!empty($ids)) {
@@ -109,7 +109,7 @@ class LapakController extends Controller
             $pk = (new Rombong)->getKeyName();
 
             // update kolom lapak_id pada rombong yang dipilih
-            Rombong::whereIn($pk, $ids)
+            rombong::whereIn($pk, $ids)
                 ->update(['lapak_id' => $lapak->getKey()]);
         }
 
@@ -120,7 +120,56 @@ class LapakController extends Controller
     public function destroy($userId)
     {
         $lapak = Lapak::findOrFail($userId);
+        
+        // Reset lapak_id semua rombong yang terhubung ke lapak ini
+        rombong::where('lapak_id', $lapak->getKey())
+            ->update(['lapak_id' => null]);
+            
         $lapak->delete();
         return redirect()->route('admin.lapak.index')->with('success', 'Lapak berhasil dihapus');
+    }
+    
+    public function addAnggota(Request $request)
+    {
+        $validated = $request->validate([
+            'lapak_id'      => 'required|integer|exists:lapaks,lapak_id',
+            'rombong_ids'   => 'required|array|min:1',
+            'rombong_ids.*' => 'integer|exists:rombongs,rombong_id',
+        ]);
+
+        $lapak = Lapak::findOrFail($validated['lapak_id']);
+        $pk = (new Rombong)->getKeyName();
+
+        // Update lapak_id pada rombong yang dipilih
+        $updated = rombong::whereIn($pk, $validated['rombong_ids'])
+            ->update(['lapak_id' => $lapak->getKey()]);
+
+        $message = $updated > 0 
+            ? "Berhasil menambahkan {$updated} anggota ke lapak {$lapak->nama_lapak}"
+            : "Tidak ada anggota yang ditambahkan";
+
+        return redirect()->route('admin.lapak.index')->with('success', $message);
+    }
+    
+    public function removeAnggota(Request $request)
+    {
+        $validated = $request->validate([
+            'lapak_id'   => 'required|integer|exists:lapaks,lapak_id',
+            'rombong_id' => 'required|integer|exists:rombongs,rombong_id',
+        ]);
+
+        $lapak = Lapak::findOrFail($validated['lapak_id']);
+        $pk = (new Rombong)->getKeyName();
+
+        // Reset lapak_id pada rombong yang dipilih
+        $updated = rombong::where($pk, $validated['rombong_id'])
+            ->where('lapak_id', $lapak->getKey())
+            ->update(['lapak_id' => null]);
+
+        $message = $updated > 0 
+            ? "Anggota berhasil dihapus dari lapak {$lapak->nama_lapak}"
+            : "Anggota tidak ditemukan atau sudah tidak ada di lapak";
+
+        return redirect()->route('admin.lapak.index')->with('success', $message);
     }
 }
